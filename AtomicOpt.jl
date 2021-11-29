@@ -31,6 +31,7 @@ export face, gauge, rank, support, expose, expose!
 export face_project
 export ×, cross
 export level_set
+export MaskOP, TMaskOP
 
 "Abstract atomic set."
 abstract type AbstractAtomicSet end
@@ -45,7 +46,7 @@ abstract type AbstractFace end
 abstract type AbstractOperator end
 
 "Abstract Linear Operator"
-AbstractLinearOp = Union{LinearMap, AbstractMatrix}
+AbstractLinearOp = Union{LinearMap, AbstractMatrix, AbstractOperator}
 
 include("src/BasicSets/OneBall.jl")
 include("src/BasicSets/NucBall.jl")
@@ -62,6 +63,7 @@ include("src/SetOperations/utils.jl")
 include("src/Optimization/align.jl")
 include("src/Optimization/levelset.jl")
 include("src/Optimization/boxls.jl")
+include("src/Optimization/operators.jl")
 
 dot(a1::AbstractAtom, a2::Vector) = dot(vec(a1), a2)
 dot(a1::Vector, a2::AbstractAtom) = dot(vec(a2), a1)

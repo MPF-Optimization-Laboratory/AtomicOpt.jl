@@ -64,7 +64,7 @@ function DualCGIterable(M,
     z = M'*r
     Ma = M*expose(atomicSet, z)
     Mx = M*expose(atomicSet, zeros(size(z)))
-    Δr = Ma - Mx
+    Δr = Ma - Mx; Δr = convert(typeof(Mx), Δr)
     τ = 0.0
     DualCGIterable(M, b, atomicSet, r, z, Ma, Mx, Δr, τ, optTol)
 end
@@ -109,7 +109,8 @@ function iterate(p::DualCGIterable, k::Int=0)
     @. p.Δr = p.Ma - p.Mx
 
     # Compute gap and possible exit
-    gap = sumdot(p.Δr, p.r)
+    Δr = convert(typeof(p.r), p.Δr)
+    gap = sumdot(Δr, p.r)
     oracleExit(p, gap) && return (gap, p.r), k+1
 
     # Linesearch
@@ -123,7 +124,8 @@ function iterate(p::DualCGIterable, k::Int=0)
     BLAS.axpy!(1, p.Δr, p.Mx)
 
     # Update gradient: z ← M'r
-    mul!(p.z, p.M', p.r)
+    p.z = p.M' * p.r
+    # mul!(p.z, p.M', p.r)
 
     return (gap, p.r), k+1
 end

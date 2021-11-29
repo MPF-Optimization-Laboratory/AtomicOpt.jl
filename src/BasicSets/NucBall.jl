@@ -67,7 +67,7 @@ gauge(A::NucBall, x::Vector) = gauge(A, reshape(x, A.n, A.m))
 
 Gives the largest singular value of `z`.
 """
-function support(A::NucBall, z::Matrix)
+function support(A::NucBall, z::Union{Matrix, SparseMatrixCSC})
     r = A.maxrank
     if r == 0
         s = [0]
@@ -85,7 +85,7 @@ support(A::NucBall, z::Vector) = support(A, reshape(z, A.n, A.m))
 
 Gives the top singular vectors of `z`.
 """
-function expose(A::NucBall, z::Matrix)
+function expose(::NucBall, z::Union{Matrix, SparseMatrixCSC})
     u, ~, v = svds(z, nsv=1)[1]
     return NucBallAtom(vec(u), vec(v))
 end
@@ -124,7 +124,7 @@ the exposed face is limited by `k=maxrank(A)`. If the dimension is being limited
 by `k`, then the routine returns a set of rank `k` atoms that define the subset
 of the exposed face.
 """
-function face(A::NucBall, z::Matrix; rTol=0.1)
+function face(A::NucBall, z::Union{Matrix, SparseMatrixCSC}; rTol=0.1)
     r = A.maxrank
     if r == 0   
         U = zeros(A.n, 1)
@@ -146,7 +146,7 @@ face(A::NucBall, z::Vector; kwargs...) = face(A, reshape(z, A.n, A.m); kwargs...
 Given a face and a set of weights, reveal the corresponding
 point on the face.
 """
-Base.:(*)(F::NucBallFace, S::Matrix) = vec(F.U*S*F.V')
+Base.:(*)(F::NucBallFace, S::Union{Matrix, SparseMatrixCSC}) = vec(F.U*S*F.V')
 Base.:(*)(F::NucBallFace, c::Vector) = F*reshape(c, F.k, F.k)
 
 """
