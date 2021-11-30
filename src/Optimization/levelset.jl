@@ -1,36 +1,16 @@
-# struct LevelSetMethod{matT}
-#     oracle::DualCGIterable
-#     M::matT
-#     b::Vector{Float64}
-#     atomicSet::AbstractAtomicSet
-#     α::Float64
-#     feaTol::Float64
-#     optTol::Float64
-#     gapTol::Float64
-#     maxIts::Integer
-#     function LevelSetMethod(M::matT, b, atomicSet, α,
-#                             feaTol, optTol, gapTol,
-#                             maxIts) where matT
-#         dCGiterator = DualCGIterable(M, b, atomicSet)
-#         new{matT}(dCGiterator, M, b, atomicSet, α,
-#                   feaTol, optTol, gapTol, maxIts)
-#     end
-# end
-
-struct LevelSetMethod{matT,atomT<:AbstractAtomicSet}
-    M::matT
+struct LevelSetMethod
+    M::AbstractLinearOp
     b::Vector{Float64}
-    atomicSet::atomT
+    atomicSet::AbstractAtomicSet
     α::Float64
     feaTol::Float64
     optTol::Float64
     gapTol::Float64
     maxIts::Int64
-    function LevelSetMethod(M::matT, b, atomicSet::atomT,
+    function LevelSetMethod(M::AbstractLinearOp, b, atomicSet::AbstractAtomicSet,
                             α, feaTol, optTol, gapTol,
-                            maxIts) where {matT, atomT}
-        new{matT,atomT}(M, b, atomicSet, α,
-                        feaTol, optTol, gapTol, maxIts)
+                            maxIts)
+        new(M, b, atomicSet, α, feaTol, optTol, gapTol, maxIts)
     end
 end
 
@@ -76,7 +56,7 @@ Level-set method for the problem
 
     min gauge(x | A) subj to Mx=b.
 """
-function level_set(M, b::Vector, atomicSet::AbstractAtomicSet;
+function level_set(M, b::Vector{Float64}, atomicSet::AbstractAtomicSet;
                    α::Float64 = 0.0,
                    tol::Float64 = 1e-12,
                    gapTol::Float64 = 1+norm(b),

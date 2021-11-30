@@ -12,7 +12,7 @@ using FFTW
 using Arpack
 using LBFGSB
 
-import Base: show, vec
+import Base: show, vec, size
 import LinearAlgebra: dot, ×, cross, rank
 # import LinearMaps: ⊗
 
@@ -46,7 +46,8 @@ abstract type AbstractFace end
 abstract type AbstractOperator end
 
 "Abstract Linear Operator"
-AbstractLinearOp = Union{LinearMap, AbstractMatrix, AbstractOperator}
+LinearOp = Union{LinearMap, AbstractMatrix}
+AbstractLinearOp = Union{LinearOp, AbstractOperator}
 
 include("src/BasicSets/OneBall.jl")
 include("src/BasicSets/NucBall.jl")

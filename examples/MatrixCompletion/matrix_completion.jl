@@ -25,5 +25,8 @@ b =  B.nzval
 Mop = MaskOP(mask)
 
 # construct atomic set
-A = NucBall(m, n, r)
-x, normr = level_set(Mop, b, A,  α = 0.0, tol = 1e-3, maxIts=10*length(b), logger=1)
+A = NucBall(m, n, 2*r)
+x, normr = level_set(Mop, b, A,  α = 0.0, tol = 1e-3, maxIts=10*length(b))
+X_recover = reshape(x, m, n)
+
+@printf "The relative Frobenius norm of (X - X_recover) = %e \n" norm(X - X_recover)/norm(X)

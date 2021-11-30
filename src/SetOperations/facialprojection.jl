@@ -13,7 +13,7 @@ face `F` under the linear map `M`, i.e., ``MF``. In particular,
 
 Each face `F` is aware of the required constraint of `c`.
 """
-function face_project(M::AbstractMatrix, F::AbstractFace, b::Vector)
+function face_project(M::AbstractLinearOp, F::AbstractFace, b::Vector)
     MF = M*F
     # println("finish create the linear map")
     # c = cg(MF'*MF, MF'*b)

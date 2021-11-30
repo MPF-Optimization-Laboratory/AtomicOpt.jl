@@ -2,38 +2,9 @@ import Base: iterate
 import Base.Iterators.take
 
 """
-Structure to hold the iterates of the dual conditional gradient
-method.
-"""
-# mutable struct DualCGIterable{Tz, matT, LinOpT, T <: Float64}
-#     M::LinOpT
-#     b::Vector{T}
-#     atomicSet::AbstractAtomicSet
-#     r::Vector{T}     # residual
-#     z::Tz            # negative gradient
-#     Ma::matT         # image of the atom
-#     Mx::matT         # image of primal variable
-#     Δr::matT         # residual step
-#     τ::T
-#     optTol::T
-# end
+Structure to hold the iterates of the dual conditional gradient method.
 
-mutable struct DualCGIterable{Tz, matT, LinOpT, atomT<:AbstractAtomicSet}
-    M::LinOpT
-    b::Vector{Float64}
-    atomicSet::atomT
-    r::Vector{Float64} # residual
-    z::Tz              # negative gradient
-    Ma::matT           # image of the atom
-    Mx::matT           # image of primal variable
-    Δr::matT           # residual step
-    τ::Float64
-    optTol::Float64
-end
-
-
-"""
-    DualCGIterable(M, b, atomicSet; optTol=√eps)
+DualCGIterable(M, b, atomicSet; optTol=√eps)
 
 Construct a dual conditional gradient iterator for the problem
 
@@ -42,57 +13,33 @@ Construct a dual conditional gradient iterator for the problem
 The absolute tolerance `optTol` is used to determine the stopping condition:
 
     gap ≤ optTol(1+‖b‖₂)
-"""
-# function DualCGIterable(M,
-#                         b::Vector{Float64},
-#                         atomicSet::AbstractAtomicSet,
-#                         optTol = sqrt(eps(1.0)))
-#     r = copy(b)
-#     z = M'*r
-#     Ma = M*expose(atomicSet, z)
-#     Mx = M*expose(atomicSet, zeros(size(z)))
-#     Δr = Ma - Mx
-#     τ = 0.0
-#     DualCGIterable(M, b, atomicSet, r, z, Ma, Mx, Δr, τ, optTol)
-# end
 
-function DualCGIterable(M,
-                        b::Vector{Float64},
-                        atomicSet::AbstractAtomicSet,
-                        optTol = sqrt(eps(1.0)))
-    r = copy(b)
-    z = M'*r
-    Ma = M*expose(atomicSet, z)
-    Mx = M*expose(atomicSet, zeros(size(z)))
-    Δr = Ma - Mx; Δr = convert(typeof(Mx), Δr)
-    τ = 0.0
-    DualCGIterable(M, b, atomicSet, r, z, Ma, Mx, Δr, τ, optTol)
+"""
+mutable struct DualCGIterable
+    M::AbstractLinearOp
+    b::Vector{Float64}
+    atomicSet::AbstractAtomicSet
+    r::Vector{Float64}                   # residual
+    z::AbstractArray{Float64}           # negative gradient
+    Ma::AbstractArray{Float64}          # image of the atom
+    Mx::AbstractArray{Float64}          # image of primal variable
+    Δr::AbstractArray{Float64}          # residual step
+    τ::Float64
+    optTol::Float64
+    function DualCGIterable(M::AbstractLinearOp, b::Vector{Float64}, atomicSet::AbstractAtomicSet, optTol = sqrt(eps(1.0)))
+        r = copy(b)
+        z = M'*r
+        Ma = M*expose(atomicSet, z)
+        Mx = M*expose(atomicSet, zeros(size(z)))
+        Δr = Ma - Mx
+        τ = 0.0
+        new(M, b, atomicSet, r, z, Ma, Mx, Δr, τ, optTol)
+    end
 end
 
-function oracleExit(p::DualCGIterable, gap)
+function oracleExit(p::DualCGIterable, gap::Float64)
     return gap < p.optTol
 end
-
-
-# """
-# Defines one complete iteration of the dual conditional gradient method.
-
-# TODO: in-place versions of expose and both linear ops (forward/adjoint).
-# """
-# function iterate(p::DualCGIterable, k::Int=0)
-#     r, z, Ma, Mx, Δr, M, τ = p.r, p.z, p.Ma, p.Mx, p.Δr, p.M, p.τ
-#     a = τ*expose(p.atomicSet, z)
-#     Ma = M*a
-#     Δr = Ma - Mx; Δrs = vec(sum(Δr, dims=2)) # looks argly, may find better way
-#     gap = dot(Δrs, r)
-#     oracleExit(p, gap) && return (gap, r), k+1
-#     θ = linesearch(Δr, r)
-#     Δr = updateΔr(Δr, θ); Δrs = vec(sum(Δr, dims=2))
-#     @. r = r - Δrs
-#     @. p.Mx = Mx + Δr
-#     z .= M'*r
-#     return (gap, r), k+1
-# end
 
 """
 Defines one complete iteration of the dual conditional gradient method.
@@ -125,7 +72,6 @@ function iterate(p::DualCGIterable, k::Int=0)
 
     # Update gradient: z ← M'r
     p.z = p.M' * p.r
-    # mul!(p.z, p.M', p.r)
 
     return (gap, p.r), k+1
 end
@@ -140,7 +86,8 @@ function sumdot(X::Matrix{Float64}, y::Vector{Float64})
     fdot = x -> BLAS.dot(n, x, 1, y, 1)
     return sum(fdot, eachcol(X))
 end
-sumdot(x::Vector, y::Vector) = BLAS.dot(length(x), x, 1, y, 1)
+
+sumdot(x::Vector{Float64}, y::Vector{Float64}) = BLAS.dot(length(x), x, 1, y, 1)
 
 """
     setRadius!(p::DualCGIterable, τ::Float64)
@@ -159,14 +106,15 @@ function setRadius!(p::DualCGIterable, τ::Float64)
     end
     p.τ = τ
 end
-function rescaleIterates!(p::DualCGIterable, s::Real)
+
+function rescaleIterates!(p::DualCGIterable, s::Float64)
     p.Mx .*= s
     Mxs = vec(sum(p.Mx, dims=2))
     p.r .= p.b .- Mxs
     p.z .= p.M'*p.r
 end
 
-function replaceIterates!(p::DualCGIterable, M::AbstractMatrix, F::AbstractFace, c::Vector)
+function replaceIterates!(p::DualCGIterable, M::AbstractMatrix{Float64}, F::AbstractFace, c::Vector{Float64})
     MF = M*F
     p.Mx .= MF*c
     p.Mx .*= p.τ/sum(c)
@@ -190,7 +138,7 @@ which has the solution
 
     θ = min(1, dot(p,q)/dot(p,p))
 """
-function linesearch(p::Vector, q::Vector)
+function linesearch(p::Vector{Float64}, q::Vector{Float64})
     return min(1.0, dot(p,q)/dot(p,p))
 end
 
@@ -201,7 +149,7 @@ Solve the box-constrained least squares problem
 
     minimize_{x∈[0,1]ⁿ} ||Ax-b||₂
 """
-function linesearch(A::Matrix, b::Vector)
+function linesearch(A::Matrix{Float64}, b::Vector{Float64})
     n = size(A, 2)
     bl = zeros(n)
     bu = ones(n)
@@ -227,7 +175,7 @@ end
 """
     primal recover (need inplace version)
 """
-function primalrecover(p::DualCGIterable, α::Real)
+function primalrecover(p::DualCGIterable, α::Float64)
     s = support(p.atomicSet, p.z)
     F = face(p.atomicSet, p.z/s)
     ϵ = getResidual(p); ϵ .*= sqrt(2*α)/norm(ϵ)
