@@ -23,3 +23,25 @@ function face_project(M::AbstractLinearOp, F::AbstractFace, b::Vector)
     return c, r
 end
 
+function face_project_screening(Mop::MaskOP, F::NucBallFace, b::Vector{Float64})
+    nnz, I, J, M = Mop.nnz, Mop.I, Mop.I, Mop.M
+    U, V = F.U, F.V
+    r = F.r
+    W = Variable(r,r)
+
+    UW = U*W
+    s = 0.0
+    for k = 1:nnz
+        i, j = I[k], J[k]
+        s += square(UW[i,:]*V[j,:] - b[k])
+    end
+
+    prob = minimize(nuclearnorm(W), s <= 1e-1*nnz)
+    solve!(prob, SCS.Optimizer)
+
+    c = vec(W.value)
+    MF = Mop*F
+    r = b - MF*c
+    return c, r
+end
+

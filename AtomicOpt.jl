@@ -11,6 +11,7 @@ using Distributed
 using FFTW
 using Arpack
 using LBFGSB
+using Convex, SCS
 
 import Base: show, vec, size
 import LinearAlgebra: dot, ×, cross, rank
@@ -28,9 +29,9 @@ export PosSimplex, PosSimplexAtom, PosSimplexFace
 export TwoBall, TwoBallAtom, TwoBallFace
 # export TraceBall, TraceBallAtom
 export face, gauge, rank, support, expose, expose!
-export face_project
+export face_project, face_project_screening
 export ×, cross
-export level_set
+export level_set, level_set_bisection
 export MaskOP, TMaskOP
 
 "Abstract atomic set."
@@ -59,12 +60,13 @@ include("src/SetOperations/mapped.jl")
 include("src/SetOperations/scaled.jl")
 include("src/SetOperations/sum.jl")
 include("src/SetOperations/crossproduct.jl")
+include("src/Optimization/operators.jl")
 include("src/SetOperations/facialprojection.jl")
 include("src/SetOperations/utils.jl")
 include("src/Optimization/align.jl")
 include("src/Optimization/levelset.jl")
 include("src/Optimization/boxls.jl")
-include("src/Optimization/operators.jl")
+
 
 dot(a1::AbstractAtom, a2::Vector) = dot(vec(a1), a2)
 dot(a1::Vector, a2::AbstractAtom) = dot(vec(a2), a1)

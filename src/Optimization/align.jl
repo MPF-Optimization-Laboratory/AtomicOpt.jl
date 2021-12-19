@@ -100,7 +100,7 @@ If the current radius 0, then this routine only sets the new parameter,
 but doesn't rescale any of the dual iterates.
 """
 function setRadius!(p::DualCGIterable, τ::Float64)
-    τ ≥ p.τ || throw(DomainError((τ,p.τ), "new τ must increase"))
+    # τ ≥ p.τ || throw(DomainError((τ,p.τ), "new τ must increase"))
     if p.τ > 0
         rescaleIterates!(p, τ/p.τ)
     end
@@ -181,6 +181,7 @@ function primalrecover(p::DualCGIterable, α::Float64)
     ϵ = getResidual(p); ϵ .*= sqrt(2*α)/norm(ϵ)
     # println("start primal recovery")
     c, r = face_project(p.M, F, p.b - ϵ)
+    # c, r = face_project_screening(p.M, F, p.b - ϵ)
     feas = norm(r + ϵ)^2/2 - α
     return c, F, feas
 end
