@@ -56,8 +56,8 @@ function iterate(p::DualCGIterable, k::Int=0)
     @. p.Δr = p.Ma - p.Mx
 
     # Compute gap and possible exit
-    Δr = convert(typeof(p.r), p.Δr)
-    gap = sumdot(Δr, p.r)
+    # Δr = convert(typeof(p.r), p.Δr)
+    gap = sumdot(p.Δr, p.r)
     oracleExit(p, gap) && return (gap, p.r), k+1
 
     # Linesearch

@@ -30,8 +30,8 @@ Mop = MaskOP(mask)
 
 # construct atomic set
 A = NucBall(m, n, 2*r)
-# x, normr = level_set(Mop, b, A, α = 0.0, tol = 1e-3, maxIts=10*length(b))
-x, normr = level_set_bisection(Mop, b, A, τmax, α = 1e-2, tol = 1e-3, maxIts=10*length(b))
+x, normr = level_set(Mop, b, A, α = 0.0, tol = 1e-3, maxIts=10*length(b))
+# x, normr = level_set_bisection(Mop, b, A, τmax, α = 1e-2, tol = 1e-3, maxIts=10*length(b))
 @printf "norm of b = %e \n" norm(b)
 @show typeof(x)
 X_recover = reshape(x, m, n)

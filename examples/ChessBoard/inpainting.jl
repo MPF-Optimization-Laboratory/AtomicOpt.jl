@@ -1,8 +1,7 @@
 # ----------------------------------------------------------------------
 # chess board experiment
 # ----------------------------------------------------------------------
-using AtomicSets
-using PolarDemixing
+using AtomicOpt
 using Printf
 using LinearAlgebra
 using BSON: @save, @load
@@ -11,7 +10,7 @@ using LinearMaps
 using FFTW
 
 # load data
-@load "/Users/zhenanfan/.julia/dev/PolarDemixing/examples/ChessBoard//inpainting_data.bson" xs xr ks kr b
+@load "./examples/ChessBoard/inpainting_data.bson" xs xr ks kr b
 
 # atomic sets
 n, m = size(xs)
@@ -57,4 +56,14 @@ xrp = reshape(x[2], n, m)
 up = reshape(x[3], n, m)
  
 # save
-@save "/Users/zhenanfan/.julia/dev/PolarDemixing/examples/ChessBoard/noisy.bson" xsp xrp bp up
+# @save "/Users/zhenanfan/.julia/dev/PolarDemixing/examples/ChessBoard/noisy.bson" xsp xrp bp up
+using PyPlot
+plots = [bp, abs.(xsp), xrp, bp-up]
+fig, axes= subplots(nrows=1, ncols=3)
+c = "gray"
+for i = 1:3
+    subplot(1,3,i)
+    imshow(plots[i], cmap=c)
+    axis("off")
+end
+tight_layout(w_pad=1, h_pad=-1, pad=0)

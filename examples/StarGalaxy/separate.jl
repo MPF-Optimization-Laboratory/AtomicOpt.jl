@@ -1,5 +1,4 @@
-using AtomicSets
-using PolarDemixing
+using AtomicOpt
 using LinearAlgebra
 using PyPlot
 using BSON: @save, @load
@@ -23,7 +22,7 @@ A = As × Ad
 
 x, feas= level_set(I(length(b)), b, A, tol = 1e-3, maxIts=5000)
 
-@save "./examples/StarGalaxy/result.bson" b x 
+# @save "./examples/StarGalaxy/result.bson" b x 
 
 # plot
 c = "gray"

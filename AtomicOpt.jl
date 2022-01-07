@@ -11,7 +11,6 @@ using Distributed
 using FFTW
 using Arpack
 using LBFGSB
-using Convex, SCS
 
 import Base: show, vec, size
 import LinearAlgebra: dot, ×, cross, rank
