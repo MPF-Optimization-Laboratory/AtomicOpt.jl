@@ -30,7 +30,7 @@ export TwoBall, TwoBallAtom, TwoBallFace
 export face, gauge, rank, support, expose, expose!
 export face_project
 export ×, cross
-export level_set, conditional_graident
+export level_set, conditional_graident, coordinate_descent
 export Solution, constructPrimal
 export MaskOP, TMaskOP
 
@@ -68,6 +68,7 @@ include("src/Optimization/align.jl")
 include("src/Optimization/levelset.jl")
 include("src/Optimization/boxls.jl")
 include("src/Optimization/conditionalGradient.jl")
+include("src/Optimization/liftedCoordinateDescent.jl")
 
 
 

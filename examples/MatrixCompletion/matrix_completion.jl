@@ -20,21 +20,26 @@ mask = sprand(Bool, m, n, p); mask = convert(SparseMatrixCSC{Float64, Int64}, ma
 B =  mask .* X
 η = rand(nnz(B)); ϵ = 1.0; η .*= (ϵ/norm(η))
 b =  B.nzval + η
+α = ϵ^2/2
 
 # operator
 Mop = MaskOP(mask)
 
-# τmax
-τopt = sum(S[1:r])
-@show τmax
-
 # construct atomic set
 A = NucBall(m, n, 2*r)
 
+# optimal parameters
+αopt = ϵ^2/2
+τopt = sum(S[1:r])
+λopt = support(A, Mop'η)
+
+
+
 # solve the problem
-# sol = level_set(Mop, b, A, α = ϵ^2/2, tol = 1e-3, maxIts=10*length(b))
-# sol = level_set(Mop, b, A, α = ϵ^2/2, tol = 1e-3, maxIts=10*length(b), rule="bisection", τmax=2*τopt)
-sol = conditional_graident(Mop, b, A, α = ϵ^2/2, τopt, maxIts=10*length(b))
+# sol = level_set(Mop, b, A, α = αopt, tol = 1e-3, maxIts=10*length(b))
+# sol = level_set(Mop, b, A, α = αopt, tol = 1e-3, maxIts=10*length(b), rule="bisection", τmax=3*τopt)
+# sol = conditional_graident(Mop, b, A, τopt, tol = 1e-3, α = αopt, maxIts=10*length(b))
+sol = coordinate_descent(Mop, b, A, λopt, tol = 1e-3, α = αopt, maxIts=10*length(b))
 
 # reconstruct primal variable
 x = constructPrimal(sol)
