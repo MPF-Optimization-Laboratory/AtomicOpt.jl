@@ -44,26 +44,27 @@ b = b + u
 A = A × Au
 
 # solve
-x, normr = @time level_set(I(n*m), b, A, pr=true, maxIts=100000)
+sol = @time level_set(I(n*m), b, A, pr=true, maxIts=100000)
+x = constructPrimal(sol)
 @printf("  Norm of residual: %8.2e\n", normr)
 @printf("  Relative error in sparse signal: %8.2e\n", norm(x[1] - xs)/norm(xs))
 @printf("  Relative error in lowrank signal: %8.2e\n", norm(x[2] - xr)/norm(xr))
 
 # plot
-bp = reshape(b, n, m)
-xsp = reshape(x[1], n, m)
-xrp = reshape(x[2], n, m)
-up = reshape(x[3], n, m)
+# bp = reshape(b, n, m)
+# xsp = reshape(x[1], n, m)
+# xrp = reshape(x[2], n, m)
+# up = reshape(x[3], n, m)
  
-# save
-# @save "/Users/zhenanfan/.julia/dev/PolarDemixing/examples/ChessBoard/noisy.bson" xsp xrp bp up
-using PyPlot
-plots = [bp, abs.(xsp), xrp, bp-up]
-fig, axes= subplots(nrows=1, ncols=3)
-c = "gray"
-for i = 1:3
-    subplot(1,3,i)
-    imshow(plots[i], cmap=c)
-    axis("off")
-end
-tight_layout(w_pad=1, h_pad=-1, pad=0)
+# # save
+# # @save "/Users/zhenanfan/.julia/dev/PolarDemixing/examples/ChessBoard/noisy.bson" xsp xrp bp up
+# using PyPlot
+# plots = [bp, abs.(xsp), xrp, bp-up]
+# fig, axes= subplots(nrows=1, ncols=3)
+# c = "gray"
+# for i = 1:3
+#     subplot(1,3,i)
+#     imshow(plots[i], cmap=c)
+#     axis("off")
+# end
+# tight_layout(w_pad=1, h_pad=-1, pad=0)

@@ -14,34 +14,13 @@ face `F` under the linear map `M`, i.e., ``MF``. In particular,
 Each face `F` is aware of the required constraint of `c`.
 """
 function face_project(M::AbstractLinearOp, F::AbstractFace, b::Vector)
+    # create linear map
     MF = M*F
-    # println("finish create the linear map")
-    # c = cg(MF'*MF, MF'*b)
+    # solve the projection by lsmr
     c = lsmr(MF, b)
-    # println("finish solving the linear inverse problem")
+    # compute residual
     r = b - MF*c
     return c, r
 end
 
-function face_project_screening(Mop::MaskOP, F::NucBallFace, b::Vector{Float64})
-    nnz, I, J, M = Mop.nnz, Mop.I, Mop.I, Mop.M
-    U, V = F.U, F.V
-    r = F.r
-    W = Variable(r,r)
-
-    UW = U*W
-    s = 0.0
-    for k = 1:nnz
-        i, j = I[k], J[k]
-        s += square(UW[i,:]*V[j,:] - b[k])
-    end
-
-    prob = minimize(nuclearnorm(W), s <= 1e-1*nnz)
-    solve!(prob, SCS.Optimizer)
-
-    c = vec(W.value)
-    MF = Mop*F
-    r = b - MF*c
-    return c, r
-end
 

@@ -28,9 +28,10 @@ export PosSimplex, PosSimplexAtom, PosSimplexFace
 export TwoBall, TwoBallAtom, TwoBallFace
 # export TraceBall, TraceBallAtom
 export face, gauge, rank, support, expose, expose!
-export face_project, face_project_screening
+export face_project
 export ×, cross
-export level_set, level_set_bisection
+export level_set, conditional_graident
+export Solution, constructPrimal
 export MaskOP, TMaskOP
 
 "Abstract atomic set."
@@ -62,9 +63,12 @@ include("src/SetOperations/crossproduct.jl")
 include("src/Optimization/operators.jl")
 include("src/SetOperations/facialprojection.jl")
 include("src/SetOperations/utils.jl")
+include("src/Optimization/solution.jl")
 include("src/Optimization/align.jl")
 include("src/Optimization/levelset.jl")
 include("src/Optimization/boxls.jl")
+include("src/Optimization/conditionalGradient.jl")
+
 
 
 dot(a1::AbstractAtom, a2::Vector) = dot(vec(a1), a2)

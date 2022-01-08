@@ -1,28 +1,20 @@
-struct LevelSetMethod
-    M::AbstractLinearOp
-    b::Vector{Float64}
-    atomicSet::AbstractAtomicSet
-    α::Float64
-    feaTol::Float64
-    optTol::Float64
-    gapTol::Float64
-    maxIts::Int64
-    function LevelSetMethod(M::AbstractLinearOp, b, atomicSet::AbstractAtomicSet,
-                            α, feaTol, optTol, gapTol,
-                            maxIts)
-        new(M, b, atomicSet, α, feaTol, optTol, gapTol, maxIts)
-    end
-end
-
+########################################################################
+# Level set method
+########################################################################
 """
 Return an exit flag for the level-set oracle.
 """
-function checkExit(p::LevelSetMethod, gap, ℓ, u, k, maxIts)
-    u < p.α + p.feaTol && return :feasible     # |Mx-b|^2/2 < α is nearly satisfied
-    gap ≤ p.feaTol/2 && return :optimal        # current lasso problem is fully optimal
-    ℓ > p.α + p.feaTol && return :suboptimal   # ℓ is large enough to update τ
-    k ≥ maxIts && return :iterations           # out of iterations
-    return :noerror
+function checkExitLvl(gap::Float64, ℓ::Float64, u::Float64, k::Int64, α::Float64, feaTol::Float64, maxIts::Int64, rule::String)
+    if rule == "newton"
+        u < α + feaTol && return :feasible              # |Mx-b|^2/2 < α is nearly satisfied
+        ℓ > α + feaTol && return :suboptimal            # ℓ is large enough to update τ
+    elseif rule == "bisection"
+        ℓ > α + feaTol && return :suboptimal_small      # τ too small
+        u < α - feaTol && return :suboptimal_large      # τ too large
+    end
+    gap ≤ feaTol/2 && return :optimal                   # current lasso problem is fully optimal
+    k ≥ maxIts && return :iterations                    # out of iterations
+    return :noerror                                     # otherwise
 end
 
 
@@ -34,302 +26,149 @@ Dual conditional gradient method for the problem
 Includes various stopping conditions needed for
 the level-set methods.
 """
-function oracle!(p::LevelSetMethod, oracle, τ, maxIts)
-    setRadius!(oracle, τ)
-    k = 0; u = ℓ = 0.0
+function solveSubproblem!(dcg::DualCGIterable, τ::Float64, α::Float64, feaTol::Float64, maxIts::Int64, rule::String)
+    setRadius!(dcg, τ)
+    k = 0; u = 0.0; ℓ = 0.0
     exitFlag = :noerror
-    for (gap, r) in oracle
+    for (gap, r) in dcg
         k = k + 1
         u = norm(r)^2/2
-        ℓ = max(p.α, u - gap)
-        exitFlag = checkExit(p, gap, ℓ, u, k, maxIts)
+        ℓ = max(α, u - gap)
+        exitFlag = checkExitLvl(gap, ℓ, u, k, α, feaTol, maxIts, rule)
         exitFlag == :noerror || break
     end
-    z = getNegGradient(oracle)
-    s = support(p.atomicSet, z)
+    s = support(dcg.A, dcg.z)
     return u, ℓ, s, k, exitFlag
-end
-
-"""
-Dual conditional gradient method for the problem
-
-    minimize 1/2||Mx-b||^2  subj to  gauge(x|A)≤τ
-
-Includes various stopping conditions needed for
-the level-set bisection methods.
-"""
-function oracle_bisection!(p::LevelSetMethod, oracle, τ, maxIts)
-    setRadius!(oracle, τ)
-    k = 0; u = ℓ = 0.0
-    exitFlag = :noerror
-    for (gap, r) in oracle
-        k = k + 1
-        u = norm(r)^2/2
-        ℓ = max(p.α, u - gap)
-        if ℓ > p.α + p.feaTol
-            exitFlag = :suboptimal_small
-        elseif u < p.α - p.feaTol
-            exitFlag = :suboptimal_large
-        elseif gap ≤ p.feaTol/2 
-            exitFlag = :optimal
-        elseif k ≥ maxIts
-            exitFlag = :iterations
-        else
-            exitFlag = :noerror
-        end
-        exitFlag == :noerror || break
-    end
-    return u, ℓ, k, exitFlag
 end
 
 
 """
 Level-set method for the problem
 
-    min gauge(x | A) subj to Mx=b.
+    min gauge(x | A) subj to 1/2||Mx-b||^2 ≤ α
 """
-function level_set(M, b::Vector{Float64}, atomicSet::AbstractAtomicSet;
+function level_set(M::AbstractLinearOp, b::Vector{Float64}, A::AbstractAtomicSet;
                    α::Float64 = 0.0,
                    tol::Float64 = 1e-12,
                    gapTol::Float64 = 1+norm(b),
                    maxIts::Int = size(M,2),
                    pr::Bool = true,
-                   logger::Int = 2
+                   logger::Bool = true,
+                   rule::String = "newton",
+                   τmax::Float64 = 1.0
                    )
 
     feaTol = tol*(1+norm(b))
-    optTol = feaTol
-    dcg = DualCGIterable(M, b, atomicSet)
-    lvl = LevelSetMethod(M, b, atomicSet, α, feaTol, optTol, gapTol, maxIts)
-    (logger == 2) && logger_head(lvl)
-    (logger == 1) && logger_head_small(lvl)
+    # Structure to hold the iterates
+    dcg = DualCGIterable(M, b, A) 
+    # Structure to hold the solution
+    sol = Solution(M, b, A)
+
+    # head logging
+    m, n = size(M)
+    logger && logger_head_lvl(m, n, feaTol, α, maxIts)
 
     # Check whether b is zero
     if norm(b) < tol
-        m, n = size(M)
-        return zeros(n), 0.0
+        return sol
     end
 
-    # Solve the subproblem for τ = 0
+    # Initialization at τ = 0
     τ = 0.0
-    u = ℓ = norm(b)^2/2
-    z = getNegGradient(dcg)
-    s = support(atomicSet, z)
-
-    # ----------------------------------------------------------------
-    # dual CG iterations
-    # ----------------------------------------------------------------
-    k = 0; totIts = 0; exitFlag = nothing
-    feas = NaN; feasbest = Inf
-    x = c = cbest = F = Fbest = nothing
-    while true
-        k = k + 1
-
-        # --------------------------------------------------------------
-        # Update level-set radius.
-        # --------------------------------------------------------------
-        # Adjust lower bound and slope for root-finding on unsquared value.
-        # r = lvl.oracle.r
-        # s = s/norm(r)
-        # ℓ = dot(b,r)/norm(r) - τ*s
-        τ = τ + (ℓ-α)/s
-        exitFlag == :iterations && break
-        exitFlag == :feasible && break
-        
-        # --------------------------------------------------------------
-        # Call oracle to obtain lower minorant defined by (ℓ,s).
-        # --------------------------------------------------------------
-        u, ℓ, s, minorIts, exitFlag = oracle!(lvl, dcg, τ, maxIts-totIts)
-
-        # --------------------------------------------------------------
-        # Second-order correction. (primal recovery)
-        # --------------------------------------------------------------
-        if pr && u - α ≤ gapTol
-            c, F, feas = primalrecover(dcg, α)
-            if feas ≤ feaTol
-                exitFlag = :feasible
-            # elseif feas < u && all(>=(0), c)
-            #     replaceIterates!(lvl.oracle, M, F, c)
-            end
-        end
-
-        # --------------------------------------------------------------
-        # Keep track of the best recovery
-        # --------------------------------------------------------------
-        if feas < feasbest + 0.5
-            feasbest = feas
-            cbest = c
-            Fbest = F
-        end
-
-        # --------------------------------------------------------------
-        # Logging and bookkeeping.
-        # --------------------------------------------------------------
-        (logger == 2) && logger_level(lvl, τ, k, minorIts, ℓ, u, exitFlag, feas)
-        (logger == 1) && (mod(k, 20) == 0) && logger_level_small(τ, k, ℓ, u, feas)
-        totIts += minorIts
+    u = norm(b)^2/2; ℓ = norm(b)^2/2
+    if rule == "newton"
+        z = getNegGradient(dcg)
+        s = support(A, z)
+    elseif rule == "bisection"
+        τmin = 0.0
+    else
+        println("invalid updating rule")
+        return sol
     end
 
-    if cbest == nothing 
-        cbest, Fbest, feasbest = primalrecover(dcg, α)
-    end
-    x = Fbest*cbest
-
-    (logger == 2) && logger_foot(lvl, feasbest, totIts, u-ℓ, exitFlag)
-    (logger == 1) && logger_foot_small(lvl, feasbest, totIts, u-ℓ, exitFlag)
-    return x, τ
-end
-
-"""
-Level-set method for the problem with bisection
-
-    min gauge(x | A) subj to Mx=b.
-"""
-function level_set_bisection(M, b::Vector{Float64}, atomicSet::AbstractAtomicSet, τmax::Float64;
-                   α::Float64 = 0.0,
-                   tol::Float64 = 1e-12,
-                   gapTol::Float64 = 1+norm(b),
-                   maxIts::Int = size(M,2),
-                   pr::Bool = true,
-                   logger::Int = 2
-                   )
-
-    feaTol = tol*(1+norm(b))
-    optTol = feaTol
-    dcg = DualCGIterable(M, b, atomicSet)
-    lvl = LevelSetMethod(M, b, atomicSet, α, feaTol, optTol, gapTol, maxIts)
-    (logger == 2) && logger_head(lvl)
-    (logger == 1) && logger_head_small(lvl)
-
-    # Check whether b is zero
-    if norm(b) < tol
-        m, n = size(M)
-        return zeros(n), 0.0
-    end
-
-    # Solve the subproblem for τ = 0
-    τmin = 0.0
-    τ = τmin
-    u = ℓ = norm(b)^2/2
-
     # ----------------------------------------------------------------
-    # dual CG iterations
+    # min loop
     # ----------------------------------------------------------------
     k = 0; totIts = 0; exitFlag = :suboptimal_small
-    feas = NaN; feasbest = Inf
-    x = c = cbest = F = Fbest = nothing
     while true
         k = k + 1
 
         # --------------------------------------------------------------
         # Update level-set radius.
         # --------------------------------------------------------------
-        if exitFlag == :iterations
-            break
-        elseif exitFlag == :feasible
-            break
-        elseif exitFlag == :optimal
-            break
-        elseif exitFlag == :suboptimal_small
-            τmin = τ
-        elseif exitFlag == :suboptimal_large
-            τmax = τ
+        if rule == "newton"
+            τ = τ + (ℓ-α)/s
+        elseif rule == "bisection"
+            if exitFlag == :suboptimal_small
+                τmin = τ
+            elseif exitFlag == :suboptimal_large
+                τmax = τ
+            end
+            τ = (τmin + τmax)/2
         end
-        τ = (τmin + τmax)/2
 
         # --------------------------------------------------------------
-        # Call oracle to obtain upper and lower bounds for v(τ)
+        # Check for exit.
         # --------------------------------------------------------------
-        u, ℓ, minorIts, exitFlag = oracle_bisection!(lvl, dcg, τ, maxIts-totIts)
+        exitFlag == :iterations && break
+        exitFlag == :feasible && break
+        exitFlag == :optimal && break
+        
+        # --------------------------------------------------------------
+        # Solve subproblem to obtain lower minorant defined by (ℓ,s).
+        # --------------------------------------------------------------
+        u, ℓ, s, minorIts, exitFlag = solveSubproblem!(dcg, τ, α, feaTol, maxIts, rule)
 
         # --------------------------------------------------------------
-        # Second-order correction. (primal recovery)
+        # Primal recovery.
         # --------------------------------------------------------------
         if pr && u - α ≤ gapTol
-            c, F, feas = primalrecover(dcg, α)
-            if feas ≤ feaTol
-                exitFlag = :feasible
-            end
-        end
-
-        # --------------------------------------------------------------
-        # Keep track of the best recovery
-        # --------------------------------------------------------------
-        if feas < feasbest + 0.5
-            feasbest = feas
-            cbest = c
-            Fbest = F
+            exitFlag = primalrecover!(dcg, sol, α, feaTol, exitFlag)
         end
 
         # --------------------------------------------------------------
         # Logging and bookkeeping.
         # --------------------------------------------------------------
-        (logger == 2) && logger_level(lvl, τ, k, minorIts, ℓ, u, exitFlag, feas)
-        (logger == 1) && (mod(k, 20) == 0) && logger_level_small(τ, k, ℓ, u, feas)
+        logger && logger_level_lvl(α, τ, k, minorIts, ℓ, u, exitFlag, sol.feas)
         totIts += minorIts
     end
 
-    if cbest == nothing 
-        cbest, Fbest, feasbest = primalrecover(dcg, α)
+    if !pr
+        primalrecover!(dcg, sol, α, feaTol, exitFlag)
     end
-    x = Fbest*cbest
+    
+    # foot logging
+    logger&& logger_foot_lvl(b, sol.feas, totIts, u-ℓ)
 
-    (logger == 2) && logger_foot(lvl, feasbest, totIts, u-ℓ, exitFlag)
-    (logger == 1) && logger_foot_small(lvl, feasbest, totIts, u-ℓ, exitFlag)
-    return x, τ
+    return sol
 end
 
-function logger_head(p::LevelSetMethod)
-    m, n = size(p.M)
+function logger_head_lvl(m, n, feaTol, α, maxIts)
     println()
     println("  -------------------------------------------------------------------------")
     println("  Polar Level Set Method")
     println("  -------------------------------------------------------------------------")
-    @printf("  %-22s %7d %7s %-20s %8.2e\n","number of variables",n,"","optimality",p.optTol)
-    @printf("  %-22s %7d %7s %-20s %8.2e\n","number of constraints",m,"","feasibility",p.feaTol)
-    @printf("  %-22s %7d %7s %-20s %8.2e\n","max duCG iterations",p.maxIts,"","α",p.α)
+    @printf("  %-22s %7d %7s %-20s %7d\n","number of variables",n,"","number of constraints",m)
+    @printf("  %-22s %7.2e %7s %-20s %7.2e\n","feasibility tolerance",feaTol,"","α",α)
+    @printf("  %-22s %7d \n","max iterations",maxIts)
     println("  -------------------------------------------------------------------------")
     @printf("  %5s   %8s   %8s   %8s   %8s   %8s  %15s  %10s\n",
-            "Major","Minor","u-α","ℓ-α","Gap","Tau","infeas(recover)","Subproblem")
+            "Major","Minor","u-α","ℓ-α","gap","τ","infeas-α","Subproblem")
 end
-function logger_foot(p::LevelSetMethod, normr, totIts, gap, exitFlag)
-    scale = 1+norm(p.b)
+
+function logger_foot_lvl(b, feas, totIts, gap)
+    scale = 1+norm(b)
+    normr = sqrt(2*feas)
     println("  -------------------------------------------------------------------------")
     @printf("  %-22s %8.1e %7s %-22s %8.2e\n","residual (abs)",normr,"","optimality gap (abs)",gap)
     @printf("  %-22s %8.1e %7s %-22s %8.2e\n","residual (rel)",normr/scale,"","optimality gap (rel)",gap/scale)
     @printf("  %-22s %8d %7s %-22s %8s\n","total iterations",totIts,"","","")
     println("  -------------------------------------------------------------------------")
 end
-function logger_level(p::LevelSetMethod, τ, k, minorItns, ℓ, u, exitFlag, feas)
+
+function logger_level_lvl(α, τ, k, minorItns, ℓ, u, exitFlag, feas)
     gap = u - ℓ
     # optimal = log10(dot(p.b,p.oracle.r)/norm(p.oracle.z,Inf))
     @printf("  %5d   %8d   %8.2e   %8.2e   %8.2e   %8.2e   %12.2e   %s\n",
-            k, minorItns, u - p.α, ℓ-p.α, gap, τ, feas, exitFlag)
-end
-
-function logger_head_small(p::LevelSetMethod)
-    m, n = size(p.M)
-    println()
-    println("  -------------------------------------------------------------------------")
-    println("  Polar Level Set Method")
-    println("  -------------------------------------------------------------------------")
-    @printf("  %-22s %7d %7s %-20s %8.2e\n","number of variables",n,"","optimality",p.optTol)
-    @printf("  %-22s %7d %7s %-20s %8.2e\n","number of constraints",m,"","feasibility",p.feaTol)
-    @printf("  %-22s %7d %7s %-20s %8.2e\n","max duCG iterations",p.maxIts,"","α",p.α)
-    println("  -------------------------------------------------------------------------")
-    @printf("  %5s   %8s   %8s  %8s\n",
-            "Major","Gap","Tau","Feasible")
-end
-function logger_foot_small(p::LevelSetMethod, normr, totIts, gap, exitFlag)
-    scale = 1+norm(p.b)
-    println("  -------------------------------------------------------------------------")
-    # @printf("  %-22s %8.1e %7s %-22s %8.2e\n","residual (abs)",normr,"","optimality gap (abs)",gap)
-    @printf("  %-22s %8.1e %7s %-22s %8.2e\n","residual (rel)",normr/scale,"","optimality gap (rel)",gap/scale)
-    println("  -------------------------------------------------------------------------")
-end
-function logger_level_small(τ, k, ℓ, u, feas)
-    gap = u - ℓ
-    # optimal = log10(dot(p.b,p.oracle.r)/norm(p.oracle.z,Inf))
-    @printf("  %5d   %8.2e   %8.2e   %8.2e \n",
-            k, gap, τ, feas)
+            k, minorItns, u-α, ℓ-α, gap, τ, feas-α, exitFlag)
 end

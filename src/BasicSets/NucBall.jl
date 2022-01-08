@@ -6,15 +6,15 @@
 
 Atom in the NucBall of dimension m×n.
 """
-struct NucBallAtom <: AbstractAtom
-    m::Int64
-    n::Int64
-    u::Vector{Float64}
-    v::Vector{Float64}
+struct NucBallAtom{T1<:Int64, T2<:Vector{Float64}} <: AbstractAtom
+    m::T1
+    n::T1
+    u::T2
+    v::T2
     function NucBallAtom(u::Vector{Float64}, v::Vector{Float64})
         m = length(u)
         n = length(v)
-        new(m, n, u, v)
+        new{Int64, Vector{Float64}}(m, n, u, v)
     end
 end
 
@@ -39,18 +39,18 @@ The atomic set takes two optional parameters:
 
 `maxrank` is the maximum dimension of the face exposed by a vector.
 """
-struct NucBall <: AbstractAtomicSet
-    m::Int64
-    n::Int64
-    maxrank::Int64
-    function NucBall(m, n, maxrank)
+struct NucBall{T<:Int64} <: AbstractAtomicSet
+    m::T
+    n::T
+    maxrank::T
+    function NucBall(m::Int64, n::Int64, maxrank::Int64)
         m ≥ 1 || throw(DomainError(m,"m must be a positive integer"))
         n ≥ 1 || throw(DomainError(n,"n must be a positive integer"))
         min(m,n) ≥ maxrank ≥ 0 || throw(DomainError(maxrank,"maxrank must be ≥ 0"))
-        new(m, n, maxrank)
+        new{Int64}(m, n, maxrank)
     end
 end
-NucBall(m, n; maxrank=min(m, n)) = NucBall(m, n, maxrank)
+NucBall(m::Int64, n::Int64; maxrank=min(m, n)) = NucBall(m, n, maxrank)
 
 
 """
@@ -103,17 +103,17 @@ atom_parameters(A::NucBall) = "m = $(A.m), n = $(A.n), maxrank = $(A.maxrank)"
 # Face of the nuclear-norm ball.
 ########################################################################
 
-struct NucBallFace <: AbstractFace
-    m::Int64
-    n::Int64
-    r::Int64
-    U::Matrix{Float64}
-    V::Matrix{Float64}
+struct NucBallFace{T1<:Int64, T2<:Matrix{Float64}} <: AbstractFace
+    m::T1
+    n::T1
+    r::T1
+    U::T2
+    V::T2
     function NucBallFace(U::Matrix{Float64}, V::Matrix{Float64})
         m = size(U, 1)
         n = size(V, 1)
         r = size(U, 2)
-        new(m, n, r, U, V)
+        new{Int64, Matrix{Float64}}(m, n, r, U, V)
     end
 end
 
@@ -125,7 +125,7 @@ the exposed face is limited by `k=maxrank(A)`. If the dimension is being limited
 by `k`, then the routine returns a set of rank `k` atoms that define the subset
 of the exposed face.
 """
-function face(A::NucBall, z::AbstractMatrix{Float64}; rTol=0.1)
+function face(A::NucBall, z::AbstractMatrix{Float64})
     r = A.maxrank
     if r == 0   
         U = zeros(A.m, 1)
@@ -142,7 +142,7 @@ function face(A::NucBall, z::AbstractMatrix{Float64}; rTol=0.1)
     return NucBallFace(U, V)
 end
 
-face(A::NucBall, z::Vector{Float64}; kwargs...) = face(A, reshape(z, A.m, A.n); kwargs...)
+face(A::NucBall, z::Vector{Float64}) = face(A, reshape(z, A.m, A.n))
 
 """
 Given a face and a set of weights, reveal the corresponding

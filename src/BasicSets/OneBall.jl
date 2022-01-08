@@ -7,12 +7,12 @@
 
 Atom in the OneBall of dimension n.
 """
-struct OneBallAtom <: AbstractAtom
-    n::Int64
-    z::Vector{Float64}
-    function OneBallAtom(z)
+struct OneBallAtom{T1<:Int64, T2<:Vector{Float64}} <: AbstractAtom
+    n::T1
+    z::T2
+    function OneBallAtom(z::Vector{Float64})
         n = length(z)
-        return new(n, z)
+        new{Int64, Vector{Float64}}(n, z)
     end
 end
 
@@ -35,23 +35,23 @@ The atomic set takes two optional parameters:
 
 `maxrank` is the maximum dimension of the face exposed by a vector.
 """
-struct OneBall <: AbstractAtomicSet
-    n::Int64
-    maxrank::Int64
-    function OneBall(n, maxrank)
+struct OneBall{T<:Int64} <: AbstractAtomicSet
+    n::T
+    maxrank::T
+    function OneBall(n::Int64, maxrank::Int64)
         n ≥ 1 || throw(DomainError(n,"n must be a positive integer"))
         n ≥ maxrank ≥ 1 || throw(DomainError(maxrank,"maxrank must be ≥ 1"))
-        return new(n, maxrank)
+        new{Int64}(n, maxrank)
     end
 end
-OneBall(n; maxrank=n) = OneBall(n, maxrank)
+OneBall(n::Int64; maxrank=n) = OneBall(n, maxrank)
 
 """
     gauge(A::OneBall, x::Vector)
 
 Gives the 1-norm of `x`.
 """
-gauge(A::OneBall, x::Vector) = norm(x,1)
+gauge(::OneBall, x::Vector) = norm(x,1)
 gauge(A::OneBall, x::Matrix) = gauge(A, vec(x))
 
 """
@@ -59,7 +59,7 @@ gauge(A::OneBall, x::Matrix) = gauge(A, vec(x))
 
 Gives the inf-norm of `z`.
 """
-support(A::OneBall, z::Vector) = norm(z,Inf)
+support(::OneBall, z::Vector) = norm(z,Inf)
 
 """
     expose(A::OneBall, z::Vector)
@@ -75,7 +75,7 @@ Obtain an atom in the face exposed by the vector `z`.
 The vector `z` is overwritten. If `norm(z,Inf)<tol`, then
 `z` is returned untouched.
 """
-function expose!(A::OneBall, z::Vector; tol=1e-1)
+function expose!(::OneBall, z::Vector; tol=1e-1)
     zmax = norm(z,Inf)
     if zmax < 1e-12
         return OneBallAtom(zero(z))
@@ -104,13 +104,15 @@ atom_parameters(A::OneBall) = "n = $(length(A)); maxrank = $(A.maxrank)"
 # Face of the 1-norm ball.
 ########################################################################
 
-struct OneBallFace <: AbstractFace
-    n::Int64
-    k::Int64
-    S::LinearMap{Float64}
+struct OneBallFace{T1<:Int64, T2<:LinearMap{Float64}} <: AbstractFace
+    n::T1
+    k::T1
+    S::T2
+    function OneBallFace(S::LinearMap{Float64}) 
+        n, k = size(S)
+        new{Int64, LinearMap{Float64}}(n, k, S)
+    end
 end
-
-OneBallFace(S::LinearMap) = OneBallFace(size(S)...,S)
 
 """
     face(A, z)

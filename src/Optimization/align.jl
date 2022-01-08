@@ -4,36 +4,36 @@ import Base.Iterators.take
 """
 Structure to hold the iterates of the dual conditional gradient method.
 
-DualCGIterable(M, b, atomicSet; optTol=√eps)
+DualCGIterable(M, b, A; optTol=√eps)
 
 Construct a dual conditional gradient iterator for the problem
 
-    minimize  ½‖Mx-b‖²  subject to gauge(A|x) ≤ 1.
+    minimize  ½‖Mx-b‖²  subject to gauge(A|x) ≤ 1.   
 
 The absolute tolerance `optTol` is used to determine the stopping condition:
 
     gap ≤ optTol(1+‖b‖₂)
 
 """
-mutable struct DualCGIterable
-    M::AbstractLinearOp
-    b::Vector{Float64}
-    atomicSet::AbstractAtomicSet
-    r::Vector{Float64}                   # residual
-    z::AbstractArray{Float64}           # negative gradient
-    Ma::AbstractArray{Float64}          # image of the atom
-    Mx::AbstractArray{Float64}          # image of primal variable
-    Δr::AbstractArray{Float64}          # residual step
-    τ::Float64
-    optTol::Float64
-    function DualCGIterable(M::AbstractLinearOp, b::Vector{Float64}, atomicSet::AbstractAtomicSet, optTol = sqrt(eps(1.0)))
+mutable struct DualCGIterable{T1<:Float64, T2<:Vector{T1}, T3<:AbstractArray{T1}, T4<:AbstractLinearOp, T5<:AbstractAtomicSet}
+    M::T4           # linear operator
+    b::T2           # observation
+    A::T5           # atomic set
+    r::T2           # residual
+    z::T3           # negative gradient
+    Ma::T3          # image of the atom
+    Mx::T3          # image of primal variable
+    Δr::T3          # residual step
+    τ::T1           # current scale of atomic set
+    optTol::T1      # tolerance
+    function DualCGIterable(M::AbstractLinearOp, b::Vector{Float64}, A::AbstractAtomicSet, optTol = sqrt(eps(1.0)))
         r = copy(b)
         z = M'*r
-        Ma = M*expose(atomicSet, z)
-        Mx = M*expose(atomicSet, zeros(size(z)))
+        Ma = M*expose(A, z)
+        Mx = copy(Ma); fill!(Mx, 0.0)
         Δr = Ma - Mx
         τ = 0.0
-        new(M, b, atomicSet, r, z, Ma, Mx, Δr, τ, optTol)
+        new{Float64, Vector{Float64}, AbstractArray{Float64}, AbstractLinearOp, AbstractAtomicSet}(M, b, A, r, z, Ma, Mx, Δr, τ, optTol)
     end
 end
 
@@ -43,35 +43,37 @@ end
 
 """
 Defines one complete iteration of the dual conditional gradient method.
-TODO: in-place versions of expose and both linear ops (forward/adjoint).
 """
 function iterate(p::DualCGIterable, k::Int=0)
 
-    # Compute  M*a  where  a ∈ τA
-    a = expose(p.atomicSet, p.z)
+    # Compute  M*a  where  a = expose(τA, z)
+    a = expose(p.A, p.z)
     p.Ma .= p.M*a
     rmul!(p.Ma, p.τ)
 
-    # Compute search direction
+    # Compute search direction Δr = M(a - x)
     @. p.Δr = p.Ma - p.Mx
-
+    
     # Compute gap and possible exit
-    # Δr = convert(typeof(p.r), p.Δr)
     gap = sumdot(p.Δr, p.r)
     oracleExit(p, gap) && return (gap, p.r), k+1
 
-    # Linesearch
-    α = linesearch(p.Δr, p.r)
-
-    # r ← r - Δr*α
-    mul!(p.r, p.Δr, α, -1, 1)
-
-    # Update each column: Mx ← Mx + Δr*Diagonal(α)
-    broadcast!(*, p.Δr, p.Δr, α')
-    BLAS.axpy!(1, p.Δr, p.Mx)
+    if iszero(p.Mx) 
+        p.Mx .= p.Ma
+        p.r .= p.b - p.Mx
+    else
+        # Linesearch
+        α = linesearch(p.Δr, p.r)
+        # r ← r - Δr*α
+        mul!(p.r, p.Δr, α, -1, 1)
+        # Mx ← Mx + Δr*Diagonal(α)
+        broadcast!(*, p.Δr, p.Δr, α')
+        BLAS.axpy!(1, p.Δr, p.Mx)
+    end
 
     # Update gradient: z ← M'r
-    p.z = p.M' * p.r
+    p.z .= p.M' * p.r
+
 
     return (gap, p.r), k+1
 end
@@ -82,12 +84,12 @@ Compute the sum of the dotproducts of each column of `X`
 with the vector `y`.
 """
 function sumdot(X::Matrix{Float64}, y::Vector{Float64})
-    n = size(X, 1)
-    fdot = x -> BLAS.dot(n, x, 1, y, 1)
+    fdot = x -> dot(x, y)
     return sum(fdot, eachcol(X))
 end
 
-sumdot(x::Vector{Float64}, y::Vector{Float64}) = BLAS.dot(length(x), x, 1, y, 1)
+sumdot(x::Vector{Float64}, y::Vector{Float64}) = dot(x, y)
+
 
 """
     setRadius!(p::DualCGIterable, τ::Float64)
@@ -100,7 +102,6 @@ If the current radius 0, then this routine only sets the new parameter,
 but doesn't rescale any of the dual iterates.
 """
 function setRadius!(p::DualCGIterable, τ::Float64)
-    # τ ≥ p.τ || throw(DomainError((τ,p.τ), "new τ must increase"))
     if p.τ > 0
         rescaleIterates!(p, τ/p.τ)
     end
@@ -128,62 +129,56 @@ getResidual(p::DualCGIterable) = p.r
 
 
 """
-    linesearch(p::Vector, q::Vector)
+    linesearch(Δr::Vector, r::Vector)
 
 Solve univariate least-squares problem
 
-    minimize_{θ∈[0,1]} ||θp-q||₂,
+    minimize_{θ∈[0,1]} ||θ⋅Δr-r||₂,
 
 which has the solution
 
-    θ = min(1, dot(p,q)/dot(p,p))
+    θ = min(1, dot(Δr,Δr)/dot(Δr,Δr))
 """
-function linesearch(p::Vector{Float64}, q::Vector{Float64})
-    return min(1.0, dot(p,q)/dot(p,p))
+function linesearch(Δr::Vector{Float64}, r::Vector{Float64})
+    return min(1.0, dot(Δr,r)/dot(Δr,Δr))
 end
 
 """
-    linesearch(A::Matrix, b::Vector)
+    linesearch(Δr::Matrix, r::Vector)
 
 Solve the box-constrained least squares problem
 
-    minimize_{x∈[0,1]ⁿ} ||Ax-b||₂
+    minimize_{θ∈[0,1]ⁿ} ||Δr⋅θ - r||₂
 """
-function linesearch(A::Matrix{Float64}, b::Vector{Float64})
-    n = size(A, 2)
+function linesearch(Δr::Matrix{Float64}, r::Vector{Float64})
+    n = size(Δr, 2)
     bl = zeros(n)
     bu = ones(n)
-    # x, ~, ~ = lsbox(A, b, bu, verbose=false)
-    Q = Quadratic(A'*A, A'b)
+    Q = Quadratic(Δr'*Δr, Δr'r)
     lbfgsq = LBFGSBQuad(Q, bl, bu, m=2)
-    x = boxquad(lbfgsq)
-    return x
+    θ = boxquad(lbfgsq)
+    return θ
 end
 
-
-# """
-#     update Δr with θ
-# """
-# function updateΔr(Δr::Vector, θ::Real)
-#     return θ*Δr
-# end
-
-# function updateΔr(Δr::Matrix, θ::Vector)
-#     return Δr*Diagonal(θ)
-# end
-
 """
-    primal recover (need inplace version)
+    primal recover 
 """
-function primalrecover(p::DualCGIterable, α::Float64)
-    s = support(p.atomicSet, p.z)
-    F = face(p.atomicSet, p.z/s)
-    ϵ = getResidual(p); ϵ .*= sqrt(2*α)/norm(ϵ)
-    # println("start primal recovery")
+function primalrecover!(p::DualCGIterable, sol::Solution, α::Float64, feaTol::Float64, exitFlag)
+    flag = exitFlag
+    s = support(p.A, p.z)
+    F = face(p.A, p.z/s)
+    ϵ = copy(getResidual(p)); ϵ .*= sqrt(2*α)/norm(ϵ)
     c, r = face_project(p.M, F, p.b - ϵ)
-    # c, r = face_project_screening(p.M, F, p.b - ϵ)
-    feas = norm(r + ϵ)^2/2 - α
-    return c, F, feas
+    feas = norm(r + ϵ)^2/2 
+    if feas ≤ sol.feas
+        sol.F = F
+        sol.c = c
+        sol.feas = feas
+    end
+    if feas - α ≤ feaTol
+        flag = :feasible
+    end
+    return flag
 end
 
 
