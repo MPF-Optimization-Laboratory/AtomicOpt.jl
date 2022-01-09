@@ -37,13 +37,13 @@ A = NucBall(m, n, 2*r)
 
 # solve the problem
 # sol = level_set(Mop, b, A, α = αopt, tol = 1e-3, maxIts=10*length(b))
-# sol = level_set(Mop, b, A, α = αopt, tol = 1e-3, maxIts=10*length(b), rule="bisection", τmax=3*τopt)
+sol = level_set(Mop, b, A, α = αopt, tol = 1e-3, maxIts=10*length(b), rule="bisection", τmax=1.5*τopt)
 # sol = conditional_graident(Mop, b, A, τopt, tol = 1e-3, α = αopt, maxIts=10*length(b))
-sol = coordinate_descent(Mop, b, A, λopt, tol = 1e-3, α = αopt, maxIts=10*length(b))
+# sol = coordinate_descent(Mop, b, A, λopt, tol = 1e-3, α = αopt, maxIts=10*length(b))
 
 # reconstruct primal variable
 x = constructPrimal(sol)
 X_recover = reshape(x, m, n)
 
 @printf "norm of b = %e \n" norm(b)
-@printf "The relative Frobenius norm of (X - X_recover) = %e \n" norm(X - X_recover)/norm(X)
+@printf "The relative difference between X and X_recover: %e \n" norm(X - X_recover)/norm(X)

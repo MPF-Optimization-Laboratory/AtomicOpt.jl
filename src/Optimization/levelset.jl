@@ -9,8 +9,8 @@ function checkExitLvl(gap::Float64, ℓ::Float64, u::Float64, k::Int64, α::Floa
         u < α + feaTol && return :feasible              # |Mx-b|^2/2 < α is nearly satisfied
         ℓ > α + feaTol && return :suboptimal            # ℓ is large enough to update τ
     elseif rule == "bisection"
-        ℓ > α + feaTol && return :suboptimal_small      # τ too small
-        u < α - feaTol && return :suboptimal_large      # τ too large
+        u < α && return :suboptimal_large               # τ too large
+        ℓ > α && return :suboptimal_small               # τ too small
     end
     gap ≤ feaTol/2 && return :optimal                   # current lasso problem is fully optimal
     k ≥ maxIts && return :iterations                    # out of iterations
@@ -133,9 +133,9 @@ function level_set(M::AbstractLinearOp, b::Vector{Float64}, A::AbstractAtomicSet
         totIts += minorIts
     end
 
-    if !pr
-        primalrecover!(dcg, sol, α, feaTol, exitFlag)
-    end
+
+    primalrecover!(dcg, sol, α, feaTol, exitFlag)
+
     
     # foot logging
     logger&& logger_foot_lvl(b, sol.feas, totIts, u-ℓ)

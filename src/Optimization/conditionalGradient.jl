@@ -68,9 +68,9 @@ function conditional_graident(M::AbstractLinearOp, b::Vector{Float64}, A::Abstra
         logger && logger_level_cg(α, k, u, gap, exitFlag, sol.feas)
     end
 
-    if !pr
-        primalrecover!(dcg, sol, α, feaTol, exitFlag)
-    end
+
+    primalrecover!(dcg, sol, α, feaTol, exitFlag)
+
     
     # foot logging
     logger&& logger_foot_cg(b, sol.feas, k)
