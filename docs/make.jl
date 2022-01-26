@@ -1,4 +1,4 @@
-using Documenter, AtomicSets
+using Documenter
 
 makedocs(;
     modules=[AtomicSets],
@@ -7,7 +7,7 @@ makedocs(;
         "Home" => "index.md",
         "PolarCalculus" => "calculus.md"
     ],
-    repo="https://github.com/mpf/AtomicSets.jl/blob/{commit}{path}#L{line}",
-    sitename="AtomicSets.jl",
-    authors="Michael P. Friedlander",
+    repo="https://github.com/ZhenanFanUBC/AtomicOpt.jl/blob/{commit}{path}#L{line}",
+    sitename="AtomicOpt.jl",
+    authors="Zhenan Fan",
 )

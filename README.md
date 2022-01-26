@@ -1,3 +1,3 @@
 # AtomicOpt
 
-Package for solving atomic-sets-related optimization problems.  
+Package for solving atomic optimization problems.  

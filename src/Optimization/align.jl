@@ -15,12 +15,13 @@ The absolute tolerance `optTol` is used to determine the stopping condition:
     gap ≤ optTol(1+‖b‖₂)
 
 """
-mutable struct DualCGIterable{T1<:Float64, T2<:Vector{T1}, T3<:AbstractArray{T1}, T4<:AbstractLinearOp, T5<:AbstractAtomicSet}
+mutable struct DualCGIterable{T1<:Float64, T2<:Vector{T1}, T3<:AbstractArray{T1}, T4<:AbstractLinearOp, T5<:AbstractAtomicSet, T6<:AbstractAtom}
     M::T4           # linear operator
     b::T2           # observation
     A::T5           # atomic set
     r::T2           # residual
     z::T3           # negative gradient
+    a::T6           # exposed atom
     Ma::T3          # image of the atom
     Mx::T3          # image of primal variable
     Δr::T3          # residual step
@@ -29,11 +30,12 @@ mutable struct DualCGIterable{T1<:Float64, T2<:Vector{T1}, T3<:AbstractArray{T1}
     function DualCGIterable(M::AbstractLinearOp, b::Vector{Float64}, A::AbstractAtomicSet, optTol = sqrt(eps(1.0)))
         r = copy(b)
         z = M'*r
-        Ma = M*expose(A, z)
+        a = expose(A, z)
+        Ma = M*a
         Mx = copy(Ma); fill!(Mx, 0.0)
         Δr = Ma - Mx
         τ = 0.0
-        new{Float64, Vector{Float64}, AbstractArray{Float64}, AbstractLinearOp, AbstractAtomicSet}(M, b, A, r, z, Ma, Mx, Δr, τ, optTol)
+        new{Float64, Vector{Float64}, AbstractArray{Float64}, AbstractLinearOp, AbstractAtomicSet, AbstractAtom}(M, b, A, r, z, a, Ma, Mx, Δr, τ, optTol)
     end
 end
 
@@ -47,8 +49,9 @@ Defines one complete iteration of the dual conditional gradient method.
 function iterate(p::DualCGIterable, k::Int=0)
 
     # Compute  M*a  where  a = expose(τA, z)
-    a = expose(p.A, p.z)
-    p.Ma .= p.M*a
+    expose!(p.A, p.z, p.a)
+    # p.Ma .= p.M*p.a
+    mul!(p.Ma, p.M, p.a)
     rmul!(p.Ma, p.τ)
 
     # Compute search direction Δr = M(a - x)
@@ -59,8 +62,10 @@ function iterate(p::DualCGIterable, k::Int=0)
     oracleExit(p, gap) && return (gap, p.r), k+1
 
     if iszero(p.Mx) 
+        # Mx ← Ma
         p.Mx .= p.Ma
-        p.r .= p.b - p.Mx
+        # r ← b - Mx
+        p.r .= p.b - sum(p.Mx, dims=2)[:]
     else
         # Linesearch
         α = linesearch(p.Δr, p.r)
@@ -72,8 +77,7 @@ function iterate(p::DualCGIterable, k::Int=0)
     end
 
     # Update gradient: z ← M'r
-    p.z .= p.M' * p.r
-
+    mul!(p.z, p.M', p.r)
 
     return (gap, p.r), k+1
 end
@@ -83,7 +87,7 @@ end
 Compute the sum of the dotproducts of each column of `X`
 with the vector `y`.
 """
-function sumdot(X::Matrix{Float64}, y::Vector{Float64})
+function sumdot(X::AbstractMatrix{Float64}, y::Vector{Float64})
     fdot = x -> dot(x, y)
     return sum(fdot, eachcol(X))
 end
@@ -150,7 +154,7 @@ Solve the box-constrained least squares problem
 
     minimize_{θ∈[0,1]ⁿ} ||Δr⋅θ - r||₂
 """
-function linesearch(Δr::Matrix{Float64}, r::Vector{Float64})
+function linesearch(Δr::AbstractMatrix{Float64}, r::Vector{Float64})
     n = size(Δr, 2)
     bl = zeros(n)
     bu = ones(n)
@@ -166,16 +170,16 @@ end
 function primalrecover!(p::DualCGIterable, sol::Solution, α::Float64, feaTol::Float64, exitFlag)
     flag = exitFlag
     s = support(p.A, p.z)
-    F = face(p.A, p.z/s)
+    # F = face(p.A, p.z/s)
+    face!(p.A, p.z/s, sol.Fnew)
     ϵ = copy(getResidual(p)); ϵ .*= sqrt(2*α)/norm(ϵ)
-    c, r = face_project(p.M, F, p.b - ϵ)
-    feas = norm(r + ϵ)^2/2 
-    if feas ≤ sol.feas
-        sol.F = F
-        sol.c = c
-        sol.feas = feas
+    # c, r = face_project(p.M, F, p.b - ϵ)
+    face_project!(p.M, sol.Fnew, p.b-ϵ, sol.cnew, sol.r)
+    sol.feasnew = norm(sol.r + ϵ)^2/2 
+    if sol.feasnew  ≤ sol.feas
+        update!(sol)
     end
-    if feas - α ≤ feaTol
+    if sol.feas - α ≤ feaTol
         flag = :feasible
     end
     return flag

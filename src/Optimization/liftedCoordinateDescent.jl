@@ -74,9 +74,7 @@ Lifted coordinate descent method for the problem
 function coordinate_descent(M::AbstractLinearOp, b::Vector{Float64}, A::AbstractAtomicSet, λ::Float64;
                    α::Float64 = 0.0,
                    tol::Float64 = 1e-12,
-                   gapTol::Float64 = 1+norm(b),
                    maxIts::Int = size(M,2),
-                   pr::Bool = true,
                    logger::Bool = true
                    )
 
@@ -102,21 +100,13 @@ function coordinate_descent(M::AbstractLinearOp, b::Vector{Float64}, A::Abstract
     exitFlag = :noerror
     for (g, r) in lcc
 
+        
+        exitFlag = primalrecover!(lcc, sol, α, feaTol, exitFlag)
         exitFlag == :noerror || break
         k = k + 1
         u = norm(r)^2/2
         exitFlag = checkExitCd(g, u, k, α, feaTol, maxIts)
         
-        # --------------------------------------------------------------
-        # Primal recovery.
-        # --------------------------------------------------------------
-        if pr 
-            exitFlag = primalrecover!(lcc, sol, α, feaTol, exitFlag)
-        end
-
-        # --------------------------------------------------------------
-        # Logging and bookkeeping.
-        # --------------------------------------------------------------
         logger && logger_level_cd(α, k, u, g, exitFlag, sol.feas)
     end
 
@@ -166,7 +156,7 @@ function primalrecover!(p::LiftedCCIterable, sol::Solution, α::Float64, feaTol:
     ϵ = copy(p.r); ϵ .*= sqrt(2*α)/norm(ϵ)
     c, r = face_project(p.M, F, p.b - ϵ)
     feas = norm(r + ϵ)^2/2 
-    @show feas
+    # @show feas
     if feas ≤ sol.feas
         sol.F = F
         sol.c = c
@@ -174,6 +164,19 @@ function primalrecover!(p::LiftedCCIterable, sol::Solution, α::Float64, feaTol:
     end
     if feas - α ≤ feaTol
         flag = :feasible
+    elseif flag == :optimal 
+        flag = :noerror
+        replace_iterate!(p, sol)
     end
     return flag
+end
+
+"""
+    replace iterates
+"""
+function replace_iterate!(p::LiftedCCIterable, sol::Solution)
+    MF = p.M * sol.F
+    p.Mx .= MF * sol.c
+    p.r .= p.b - p.Mx
+    p.z .= p.M' * p.r
 end

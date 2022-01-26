@@ -13,14 +13,14 @@ face `F` under the linear map `M`, i.e., ``MF``. In particular,
 
 Each face `F` is aware of the required constraint of `c`.
 """
-function face_project(M::AbstractLinearOp, F::AbstractFace, b::Vector)
+function face_project!(M::AbstractLinearOp, F::AbstractFace, b::Vector{Float64}, c::Vector{Float64}, r::Vector{Float64})
     # create linear map
     MF = M*F
     # solve the projection by lsmr
-    c = lsmr(MF, b)
+    lsmr!(c, MF, b)
     # compute residual
-    r = b - MF*c
-    return c, r
+    r .= b - MF*c
+    return nothing
 end
 
 

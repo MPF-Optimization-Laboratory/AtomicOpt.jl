@@ -9,27 +9,23 @@ using Arpack
 using IterativeSolvers
 using Distributed
 using FFTW
-using Arpack
 using LBFGSB
+using BlockArrays
 
 import Base: show, vec, size
-import LinearAlgebra: dot, ×, cross, rank
-# import LinearMaps: ⊗
+import LinearAlgebra: dot, rank
 
 export AbstractAtomicSet, AbstractAtom, AbstractFace
 export MappedAtomicSet, MappedAtom, MappedFace
-export ScaledAtomicSet, ScaledAtom, ScaledFace
 export SumAtomicSet, SumAtom, SumFace
-export CrossProductSet, CrossProductAtom, CrossProductFace
 export OneBall, OneBallAtom, OneBallFace
 export NucBall, NucBallAtom, NucBallFace
 export BlkNucBall, BlkNucBallAtom, BlkNucBallFace
-export PosSimplex, PosSimplexAtom, PosSimplexFace
-export TwoBall, TwoBallAtom, TwoBallFace
+# export PosSimplex, PosSimplexAtom, PosSimplexFace
+# export TwoBall, TwoBallAtom, TwoBallFace
 # export TraceBall, TraceBallAtom
-export face, gauge, rank, support, expose, expose!
-export face_project
-export ×, cross
+export face, face!, gauge, rank, support, expose, expose!
+export face_project!
 export level_set, conditional_graident, coordinate_descent
 export Solution, constructPrimal
 export MaskOP, TMaskOP
@@ -53,14 +49,12 @@ AbstractLinearOp = Union{LinearOp, AbstractOperator}
 include("src/BasicSets/OneBall.jl")
 include("src/BasicSets/NucBall.jl")
 include("src/BasicSets/BlkNucBall.jl")
-include("src/BasicSets/TraceBall.jl")
-include("src/BasicSets/PosSimplex.jl")
-include("src/BasicSets/TwoBall.jl")
+# include("src/BasicSets/TraceBall.jl")
+# include("src/BasicSets/PosSimplex.jl")
+# include("src/BasicSets/TwoBall.jl")
 include("src/SetOperations/mapped.jl")
-include("src/SetOperations/scaled.jl")
 include("src/SetOperations/sum.jl")
-include("src/SetOperations/crossproduct.jl")
-include("src/Optimization/operators.jl")
+include("src/SetOperations/operators.jl")
 include("src/SetOperations/facialprojection.jl")
 include("src/SetOperations/utils.jl")
 include("src/Optimization/solution.jl")

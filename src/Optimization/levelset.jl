@@ -6,7 +6,7 @@ Return an exit flag for the level-set oracle.
 """
 function checkExitLvl(gap::Float64, ℓ::Float64, u::Float64, k::Int64, α::Float64, feaTol::Float64, maxIts::Int64, rule::String)
     if rule == "newton"
-        u < α + feaTol && return :feasible              # |Mx-b|^2/2 < α is nearly satisfied
+        # u < α + feaTol && return :feasible              # |Mx-b|^2/2 < α is nearly satisfied
         ℓ > α + feaTol && return :suboptimal            # ℓ is large enough to update τ
     elseif rule == "bisection"
         u < α && return :suboptimal_large               # τ too large
@@ -105,6 +105,8 @@ function level_set(M::AbstractLinearOp, b::Vector{Float64}, A::AbstractAtomicSet
                 τmax = τ
             end
             τ = (τmin + τmax)/2
+            ρ = τmax - τmin
+            @show ρ
         end
 
         # --------------------------------------------------------------
@@ -117,7 +119,7 @@ function level_set(M::AbstractLinearOp, b::Vector{Float64}, A::AbstractAtomicSet
         # --------------------------------------------------------------
         # Solve subproblem to obtain lower minorant defined by (ℓ,s).
         # --------------------------------------------------------------
-        u, ℓ, s, minorIts, exitFlag = solveSubproblem!(dcg, τ, α, feaTol, maxIts, rule)
+        u, ℓ, s, minorIts, exitFlag = solveSubproblem!(dcg, τ, α, feaTol, maxIts-totIts, rule)
 
         # --------------------------------------------------------------
         # Primal recovery.
@@ -171,4 +173,10 @@ function logger_level_lvl(α, τ, k, minorItns, ℓ, u, exitFlag, feas)
     # optimal = log10(dot(p.b,p.oracle.r)/norm(p.oracle.z,Inf))
     @printf("  %5d   %8d   %8.2e   %8.2e   %8.2e   %8.2e   %12.2e   %s\n",
             k, minorItns, u-α, ℓ-α, gap, τ, feas-α, exitFlag)
+end
+
+function compute_ρ(p::DualCGIterable, τmax, u, α)
+    β = support(p.A, p.z)
+    ρ = u/β + β*α - dot(p.b, p.r) + τmax
+    return ρ
 end

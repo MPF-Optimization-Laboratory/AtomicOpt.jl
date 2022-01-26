@@ -7,22 +7,20 @@
 
 Create an atom as the sum of individual atoms in a vector.
 """
-struct SumAtom{As<:Tuple{Vararg{AbstractAtom}}} <: AbstractAtom
-    n::Int64
-    atoms::As
-    function SumAtom(atoms::As) where As
+mutable struct SumAtom{T1<:Int64, T2<:Tuple{Vararg{AbstractAtom}}} <: AbstractAtom
+    n::T1
+    atoms::T2
+    function SumAtom(atoms::Tuple{Vararg{AbstractAtom}}) 
         n = checklength(atoms, "all atoms must be the same length")
-        return new{As}(n, atoms)
+        new{Int64, Tuple{Vararg{AbstractAtom}}}(n, atoms)
     end
 end
 
 Base.length(a::SumAtom) = a.n
-Base.vec(a::SumAtom) = mapreduce(vec, +, a.atoms)
-Base.:(*)(M::AbstractLinearOp, a::SumAtom) = mapreduce(a->M*a, +, a.atoms)
+Base.vec(a::SumAtom) = mapreduce(vec, hcat, a.atoms)
+Base.:(*)(M::AbstractLinearOp, a::SumAtom) = mapreduce(a->M*a, hcat, a.atoms)
+LinearAlgebra.mul!(Ma::AbstractMatrix{Float64}, M::LinearOp, a::SumAtom) = pmap(i->mul!(view(Ma,:,i), M, a.atoms[i]), collect(1:length(a.atoms)))
 
-# Add a unit test if resurrected.
-# scale(a::SumAtom, α::Vector) =
-#     SumAtom([α*a for (a,α) = zip(a,α)])
 
 ########################################################################
 # Sum of atomic sets.
@@ -33,12 +31,12 @@ Base.:(*)(M::AbstractLinearOp, a::SumAtom) = mapreduce(a->M*a, +, a.atoms)
 
 Create an atomic set from the Minkowski sum of atomic sets.
 """
-struct SumAtomicSet{As<:Tuple{Vararg{AbstractAtomicSet}}} <: AbstractAtomicSet
-    n::Int64
-    sets::As
-    function SumAtomicSet(sets::As) where As
+struct SumAtomicSet{T1<:Int64, T2<:Tuple{Vararg{AbstractAtomicSet}}} <: AbstractAtomicSet
+    n::T1
+    sets::T2
+    function SumAtomicSet(sets::Tuple{Vararg{AbstractAtomicSet}}) 
         n = checklength(sets, "all atomic sets must be the same length")
-        return new{As}(n, sets)
+        new{Int64, Tuple{Vararg{AbstractAtomicSet}}}(n, sets)
     end
 end
 
@@ -68,14 +66,13 @@ end
 
 Support function of a sum of atomic sets.
 """
-function support(A::SumAtomicSet, z::Vector)
-    f = Ai->support(Ai, z)
-    return mapreduce(f, +, A.sets)
+function support(A::SumAtomicSet, z::Vector{Float64})
+    return mapreduce(Ai->support(Ai, z), +, A.sets)
 end
 
 
 """
-    expose(A::SumAtomicSet, z; kwargs...)
+    expose(A::SumAtomicSet, z)
 
 Expose atoms in the sum of atomic sets. For two atomic sets
 A and B, and a vector z,
@@ -83,10 +80,16 @@ A and B, and a vector z,
     expose((A+B),z) = expose(A,z) + expose(B,z)
 
 """
-function expose(A::SumAtomicSet, z; kwargs...)
-    f = Ai->expose(Ai, z; kwargs...)
-    return SumAtom(map(f, A.sets))
+function expose!(A::SumAtomicSet, z::Vector{Float64}, a::SumAtom)
+    k = length(A.sets)
+    pmap(i->expose!(A.sets[i], z, a.atoms[i]), collect(1:k))
+    return nothing
 end
+
+function expose(A::SumAtomicSet, z::Vector{Float64})
+    atoms = pmap(Ai->expose(Ai, z), A.sets)
+    return SumAtom(atoms)
+end 
 
 Base.length(A::SumAtomicSet) = A.n
 atom_name(A::SumAtomicSet) = "Sum of atomic sets"
@@ -96,13 +99,12 @@ atom_parameters(A::SumAtomicSet) = "$(length(A.sets)) sets; n = $(A.n)"
 ########################################################################
 # Face of sum of atomic sets.
 ########################################################################
-
-struct SumFace{As<:Tuple{Vararg{AbstractFace}}} <: AbstractFace
-    n::Int64
-    faces::As
-    function SumFace(faces::As) where As
+mutable struct SumFace{T1<:Int64, T2<:Tuple{Vararg{AbstractFace}}} <: AbstractFace
+    n::T1
+    faces::T2
+    function SumFace(faces::Tuple{Vararg{AbstractFace}})
         n = checklength(faces, "all faces must be the same length")
-        return new{As}(n, faces)
+        return new{Int64, Tuple{Vararg{AbstractFace}}}(n, faces)
     end
 end
 
@@ -111,11 +113,17 @@ end
 
 Return collection of faces of the atomic sets `Ai`'s exposed by the vector `z`.
 """
-function face(A::SumAtomicSet, z::Vector; rTol=1e-1)
-    f = Ai -> face(Ai, z, rTol = rTol)
-    faces = map(f, A.sets)
+function face!(A::SumAtomicSet, z::Vector{Float64}, F::SumFace)
+    k = length(A.sets)
+    pmap(i->face!(A.sets[i], z, F.faces[i]), collect(1:k))
+    return nothing
+end
+
+function face(A::SumAtomicSet, z::Vector{Float64})
+    faces = pmap(Ai->face(Ai, z), A.sets)
     return SumFace(faces)
 end
+
 """
 Given a face and a set of weights, reveal the corresponding
 point on the face.

@@ -7,21 +7,22 @@
 
 Atom in the OneBall of dimension n.
 """
-struct OneBallAtom{T1<:Int64, T2<:Vector{Float64}} <: AbstractAtom
+mutable struct OneBallAtom{T1<:Int64, T2<:SparseVector{Float64, Int64}} <: AbstractAtom
     n::T1
     z::T2
-    function OneBallAtom(z::Vector{Float64})
-        n = length(z)
-        new{Int64, Vector{Float64}}(n, z)
+    function OneBallAtom(z::SparseVector{Float64, Int64})
+        n = z.n
+        new{Int64, SparseVector{Float64, Int64}}(n, z)
     end
 end
 
 """
 Multiply a one-norm atom by a linear map.
 """
-Base.:(*)(M::AbstractLinearOp, a::OneBallAtom) = M*a.z
-Base.vec(a::OneBallAtom) = a.z
-Base.length(a::OneBallAtom) = a.n
+Base.:(*)(M::AbstractLinearOp, a::OneBallAtom{Int64, SparseVector{Float64, Int64}}) = M*a.z
+LinearAlgebra.mul!(Ma::AbstractVector{Float64}, M::LinearOp, a::OneBallAtom{Int64, SparseVector{Float64, Int64}}) = mul!(Ma, M, a.z)
+Base.vec(a::OneBallAtom{Int64, SparseVector{Float64, Int64}}) = a.z
+Base.length(a::OneBallAtom{Int64, SparseVector{Float64, Int64}}) = a.n
 
 ########################################################################
 # Atomic set for the 1-norm.
@@ -51,103 +52,100 @@ OneBall(n::Int64; maxrank=n) = OneBall(n, maxrank)
 
 Gives the 1-norm of `x`.
 """
-gauge(::OneBall, x::Vector) = norm(x,1)
-gauge(A::OneBall, x::Matrix) = gauge(A, vec(x))
+gauge(::OneBall{Int64}, x::Vector{Float64}) = norm(x,1)
+gauge(A::OneBall{Int64}, x::Matrix{Float64}) = gauge(A, vec(x))
 
 """
     support(A::OneBall, z::Vector)
 
 Gives the inf-norm of `z`.
 """
-support(::OneBall, z::Vector) = norm(z,Inf)
+support(::OneBall{Int64}, z::Vector{Float64}) = norm(z,Inf)
 
 """
-    expose(A::OneBall, z::Vector)
-
-A non-overwriting version of [`expose!`](@ref).
-"""
-expose(A::OneBall, z; kwargs...) = expose!(A::OneBall, copy(z); kwargs...)
-
-"""
-    expose!(A::OneBall, z::Vector; tol=1e-12)
+    expose!(A::OneBall, z::Vector, a::OneBallAtom; tol=1e-2)
 
 Obtain an atom in the face exposed by the vector `z`.
-The vector `z` is overwritten. If `norm(z,Inf)<tol`, then
-`z` is returned untouched.
+The atom `a` is overwritten. 
 """
-function expose!(::OneBall, z::Vector; tol=1e-1)
-    zmax = norm(z,Inf)
-    if zmax < 1e-12
-        return OneBallAtom(zero(z))
-    end
-    nnz = 0
-    for i in eachindex(z)
-        val = z[i]
-        if abs(zmax - abs(val)) < tol*zmax
-            z[i] = sign(val)
-            nnz += 1
-        else
-            z[i] = zero(eltype(z))
+function expose!(A::OneBall{Int64}, z::Vector{Float64}, a::OneBallAtom{Int64, SparseVector{Float64, Int64}}; tol=1e-2)
+    n = A.n
+    @inbounds a.z .= spzeros(n)
+    zmax = support(A, z)
+    if zmax ≥ 1e-12
+        nnz = 0
+        @inbounds for i in 1:n
+            val = z[i]
+            if zmax - abs(val) < tol*zmax
+                nnz += 1
+                push!(a.z.nzind, i)
+                push!(a.z.nzval, sign(val))
+            end
         end
+        a.z.nzval ./= nnz
     end
-    return OneBallAtom(z ./= nnz)
+    return nothing
 end
 
-Base.length(A::OneBall) = A.n
-rank(A::OneBall) = A.maxrank
-atom_name(A::OneBall) = "1-norm ball"
-atom_description(A::OneBall) = "{ x ∈ ℝⁿ | ||x||₁ ≤ 1 }"
-atom_parameters(A::OneBall) = "n = $(length(A)); maxrank = $(A.maxrank)"
+function expose(A::OneBall{Int64}, z::Vector{Float64})
+    a = OneBallAtom(spzeros(A.n))
+    expose!(A, z, a)
+    return a
+end
+
+Base.length(A::OneBall{Int64}) = A.n
+rank(A::OneBall{Int64}) = A.maxrank
+atom_name(A::OneBall{Int64}) = "one-norm ball"
+atom_description(A::OneBall{Int64}) = "{ x ∈ ℝⁿ | ||x||₁ ≤ 1 }"
+atom_parameters(A::OneBall{Int64}) = "n = $(length(A)); rank = $(A.maxrank)"
 
 
 ########################################################################
-# Face of the 1-norm ball.
+# Face of the one-norm ball.
 ########################################################################
 
-struct OneBallFace{T1<:Int64, T2<:LinearMap{Float64}} <: AbstractFace
+mutable struct OneBallFace{T1<:Int64, T2<:SparseMatrixCSC{Float64, Int64}} <: AbstractFace
     n::T1
     k::T1
     S::T2
-    function OneBallFace(S::LinearMap{Float64}) 
+    function OneBallFace(S::SparseMatrixCSC{Float64, Int64}) 
         n, k = size(S)
-        new{Int64, LinearMap{Float64}}(n, k, S)
+        new{Int64, SparseMatrixCSC{Float64, Int64}}(n, k, S)
     end
 end
 
 """
-    face(A, z)
+    face!(A, z, F)
 
-Return a face of the atomic set `A` exposed by the vector `z`. The dimension of
-the exposed face is limited by `k=maxrank(A)`. If the dimension is being limited
-by `k`, then the routine returns a set of rank `k` atoms that define the subset
-of the exposed face.
+(Inplace) Return a face of the atomic set `A` exposed by the vector `z`. The dimension of
+the exposed face is equal to `k=rank(A)`. 
 """
-function face(A::OneBall, z::Vector; rTol=1e-1)
-    @assert length(A) == length(z)
-    if rank(A) < length(A)
-        idx = partialsortperm(abs.(z), 1:rank(A), rev=true)
-    else 
-        t = support(A, z)
-        a = expose(A, z, tol=rTol)
-        idx = findall(!iszero, vec(a))
-    end
-    k = length(idx)
+function face!(A::OneBall{Int64}, z::Vector{Float64}, F::OneBallFace{Int64, SparseMatrixCSC{Float64, Int64}})
+    k = A.maxrank
+    idx = partialsortperm(abs.(z), 1:k, rev=true)
     val = [sign(z[i]) for i in idx]
-    n = length(A)
-    S = sparse(idx, collect(1:k), val, n, k)
-    S = LinearMap(S)
-    return OneBallFace(S)
+    @inbounds F.S.rowval .= idx
+    @inbounds F.S.nzval .= val
+    return nothing
 end
+
+function face(A::OneBall{Int64}, z::Vector{Float64})
+    n, k = A.n, A.maxrank
+    F = OneBallFace( sparse(collect(1:k), collect(1:k), ones(k), n, k) )
+    face!(A, z, F)
+    return F
+end
+
 
 """
 Given a face and a set of weights, reveal the corresponding
 point on the face.
 """
-Base.:(*)(F::OneBallFace, c::Vector) = F.S*c
-Base.:(*)(M::AbstractLinearOp, F::OneBallFace) = M*F.S
-Base.:(*)(λ::Real, F::OneBallFace) = λ*F.S
-Base.length(F::OneBallFace) = F.n
-rank(F::OneBallFace) = F.k
-vec(F::OneBallFace) = F.S
-face_name(F::OneBallFace) = "1-norm ball"
-face_parameters(F::OneBallFace) = "rank = $(rank(F)); n = $(length(F))"
+Base.:(*)(F::OneBallFace{Int64, SparseMatrixCSC{Float64, Int64}}, c::Vector{Float64}) = F.S*c
+Base.:(*)(M::AbstractLinearOp, F::OneBallFace{Int64, SparseMatrixCSC{Float64, Int64}}) = M*F.S
+Base.:(*)(λ::Float64, F::OneBallFace{Int64, SparseMatrixCSC{Float64, Int64}}) = λ*F.S
+Base.length(F::OneBallFace{Int64, SparseMatrixCSC{Float64, Int64}}) = F.n
+rank(F::OneBallFace{Int64, SparseMatrixCSC{Float64, Int64}}) = F.k
+vec(F::OneBallFace{Int64, SparseMatrixCSC{Float64, Int64}}) = F.S
+face_name(F::OneBallFace{Int64, SparseMatrixCSC{Float64, Int64}}) = "one-norm ball"
+face_parameters(F::OneBallFace{Int64, SparseMatrixCSC{Float64, Int64}}) = "rank = $(rank(F)); n = $(length(F))"
