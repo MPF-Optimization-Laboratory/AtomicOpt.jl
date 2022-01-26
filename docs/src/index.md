@@ -1,3 +1,0 @@
-# PolarDemixing.jl
-
-Hello, World!
