@@ -46,23 +46,23 @@ abstract type AbstractOperator end
 LinearOp = Union{LinearMap, AbstractMatrix}
 AbstractLinearOp = Union{LinearOp, AbstractOperator}
 
-include("src/BasicSets/OneBall.jl")
-include("src/BasicSets/NucBall.jl")
-include("src/BasicSets/BlkNucBall.jl")
+include("./BasicSets/OneBall.jl")
+include("./BasicSets/NucBall.jl")
+include("./BasicSets/BlkNucBall.jl")
 # include("src/BasicSets/TraceBall.jl")
 # include("src/BasicSets/PosSimplex.jl")
 # include("src/BasicSets/TwoBall.jl")
-include("src/SetOperations/mapped.jl")
-include("src/SetOperations/sum.jl")
-include("src/SetOperations/operators.jl")
-include("src/SetOperations/facialprojection.jl")
-include("src/SetOperations/utils.jl")
-include("src/Optimization/solution.jl")
-include("src/Optimization/align.jl")
-include("src/Optimization/levelset.jl")
-include("src/Optimization/boxls.jl")
-include("src/Optimization/conditionalGradient.jl")
-include("src/Optimization/liftedCoordinateDescent.jl")
+include("./SetOperations/mapped.jl")
+include("./SetOperations/sum.jl")
+include("./SetOperations/operators.jl")
+include("./SetOperations/facialprojection.jl")
+include("./SetOperations/utils.jl")
+include("./Optimization/solution.jl")
+include("./Optimization/align.jl")
+include("./Optimization/levelset.jl")
+include("./Optimization/boxls.jl")
+include("./Optimization/conditionalGradient.jl")
+include("./Optimization/liftedCoordinateDescent.jl")
 
 
 
