@@ -23,12 +23,13 @@ export NucBall, NucBallAtom, NucBallFace
 export BlkNucBall, BlkNucBallAtom, BlkNucBallFace
 # export PosSimplex, PosSimplexAtom, PosSimplexFace
 # export TwoBall, TwoBallAtom, TwoBallFace
-# export TraceBall, TraceBallAtom
+export TraceBall, TraceBallAtom, TraceBallFace
 export face, face!, gauge, rank, support, expose, expose!
 export face_project!
 export level_set, conditional_graident, coordinate_descent
 export Solution, constructPrimal
 export MaskOP, TMaskOP
+export dual_obj_gap
 
 "Abstract atomic set."
 abstract type AbstractAtomicSet end
@@ -49,7 +50,7 @@ AbstractLinearOp = Union{LinearOp, AbstractOperator}
 include("./BasicSets/OneBall.jl")
 include("./BasicSets/NucBall.jl")
 include("./BasicSets/BlkNucBall.jl")
-# include("src/BasicSets/TraceBall.jl")
+include("./BasicSets/TraceBall.jl")
 # include("src/BasicSets/PosSimplex.jl")
 # include("src/BasicSets/TwoBall.jl")
 include("./SetOperations/mapped.jl")

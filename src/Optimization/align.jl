@@ -17,6 +17,7 @@ The absolute tolerance `optTol` is used to determine the stopping condition:
 """
 mutable struct DualCGIterable{T1<:Float64, T2<:Vector{T1}, T3<:AbstractArray{T1}, T4<:AbstractLinearOp, T5<:AbstractAtomicSet, T6<:AbstractAtom}
     M::T4           # linear operator
+    Mt::T4          # adjoint of the linear operator
     b::T2           # observation
     A::T5           # atomic set
     r::T2           # residual
@@ -29,13 +30,14 @@ mutable struct DualCGIterable{T1<:Float64, T2<:Vector{T1}, T3<:AbstractArray{T1}
     optTol::T1      # tolerance
     function DualCGIterable(M::AbstractLinearOp, b::Vector{Float64}, A::AbstractAtomicSet, optTol = sqrt(eps(1.0)))
         r = copy(b)
-        z = M'*r
+        Mt = M'
+        z = Mt*r
         a = expose(A, z)
         Ma = M*a
         Mx = copy(Ma); fill!(Mx, 0.0)
         Δr = Ma - Mx
         τ = 0.0
-        new{Float64, Vector{Float64}, AbstractArray{Float64}, AbstractLinearOp, AbstractAtomicSet, AbstractAtom}(M, b, A, r, z, a, Ma, Mx, Δr, τ, optTol)
+        new{Float64, Vector{Float64}, AbstractArray{Float64}, AbstractLinearOp, AbstractAtomicSet, AbstractAtom}(M, Mt, b, A, r, z, a, Ma, Mx, Δr, τ, optTol)
     end
 end
 
@@ -77,7 +79,7 @@ function iterate(p::DualCGIterable, k::Int=0)
     end
 
     # Update gradient: z ← M'r
-    mul!(p.z, p.M', p.r)
+    mul!(p.z, p.Mt, p.r)
 
     return (gap, p.r), k+1
 end
@@ -92,7 +94,7 @@ function sumdot(X::AbstractMatrix{Float64}, y::Vector{Float64})
     return sum(fdot, eachcol(X))
 end
 
-sumdot(x::Vector{Float64}, y::Vector{Float64}) = dot(x, y)
+sumdot(x::AbstractVector{Float64}, y::Vector{Float64}) = dot(x, y)
 
 
 """
@@ -143,7 +145,7 @@ which has the solution
 
     θ = min(1, dot(Δr,Δr)/dot(Δr,Δr))
 """
-function linesearch(Δr::Vector{Float64}, r::Vector{Float64})
+function linesearch(Δr::AbstractVector{Float64}, r::Vector{Float64})
     return min(1.0, dot(Δr,r)/dot(Δr,Δr))
 end
 
@@ -170,10 +172,8 @@ end
 function primalrecover!(p::DualCGIterable, sol::Solution, α::Float64, feaTol::Float64, exitFlag)
     flag = exitFlag
     s = support(p.A, p.z)
-    # F = face(p.A, p.z/s)
     face!(p.A, p.z/s, sol.Fnew)
     ϵ = copy(getResidual(p)); ϵ .*= sqrt(2*α)/norm(ϵ)
-    # c, r = face_project(p.M, F, p.b - ϵ)
     face_project!(p.M, sol.Fnew, p.b-ϵ, sol.cnew, sol.r)
     sol.feasnew = norm(sol.r + ϵ)^2/2 
     if sol.feasnew  ≤ sol.feas

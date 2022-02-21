@@ -88,7 +88,78 @@ function Base.:(*)(M::MaskOP, F::NucBallFace)
     return LinearMap(f, fc, nnz(M.M), r*r)
 end
 
+################################################################################
 # phaselift operator for phase retrieval
+struct PhaseLiftOP{T1<:Int64, T2<:Matrix{Float64}} <: AbstractOperator
+    n::T1
+    p::T1
+    M::T2
+    Mt::T2
+    function PhaseLiftOP(M::Matrix{Float64})
+        n, p = size(M)
+        Mt = copy(M')
+        new{Int64, Matrix{Float64}}(n, p, M, Mt)
+    end
+end
+
+size(PLop::PhaseLiftOP) = PLop.p, Plop.n*PLop.n
+
+struct TPhaseLiftOP{T1<:Int64, T2<:Matrix{Float64}} <: AbstractOperator
+    n::T1
+    p::T1
+    M::T2
+    Mt::T2
+    function TPhaseLiftOP(M::Matrix{Float64})
+        n, p = size(M)
+        Mt = copy(M')
+        new{Int64, Matrix{Float64}}(n, p, M, Mt)
+    end
+end
+
+size(TPLop::TPhaseLiftOP) = TPlop.n*TPLop.n, TPLop.p
+
+Base.adjoint(PLop::PhaseLiftOP) = TPhaseLiftOP(PLop.M)
+
+function Base.:(*)(PLop::PhaseLiftOP, a::TraceBallAtom)
+    y = PLop.Mt * a.v
+    y .^= 2
+    return y
+end
+
+function LinearAlgebra.mul!(Ma::Vector{Float64}, PLop::PhaseLiftOP, a::TraceBallAtom)
+    Ma .= PLop.Mt * a.v
+    Ma .^= 2
+    return nothing
+end
+
+function Base.:(*)(TPLop::TPhaseLiftOP, y::Vector{Float64})
+    L = LinearMap(v->TPLop.M*Diagonal(y)*TPLop.Mt*v, TPLop.n; issymmetric=true, isposdef=true)
+    return L
+end
+
+function LinearAlgebra.mul!(z::LinearMap, TPLop::TPhaseLiftOP, y::Vector{Float64})
+    z = TPLop*y
+    return nothing
+end
+
+function Base.:(*)(PLop::PhaseLiftOP, F::TraceBallFace) 
+    n, p = size(PLop.M)
+    r = size(F.U, 2)
+    MtU = PLop.Mt * F.U
+    function f(w::Vector{Float64})
+        W = reshape(w, r, r)
+        MtUW = MtU*W
+        v = zeros(p)
+        for i in 1:p
+            v[i] = MtUW[i,:]'*MtU[i,:]
+        end
+        return v
+    end
+    f = p->M * (U*reshape(p, r, r), V)
+    fc = q->vec(F.U'*(M'*q)*V)
+    return LinearMap(f, fc, nnz(M.M), r*r)
+end
+
 
 
 

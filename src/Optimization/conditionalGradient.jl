@@ -95,7 +95,7 @@ function conditional_graident(M::AbstractLinearOp, b::Vector{Float64}, A::Abstra
 
     feaTol = tol*(1+norm(b))
     # Structure to hold the iterates
-    dcg = AccDualCGIterable(M, b, A, τ) 
+    dcg = DualCGIterable(M, b, A); setRadius!(dcg, τ) 
     # Structure to hold the solution
     sol = Solution(M, b, A)
 
@@ -124,7 +124,7 @@ function conditional_graident(M::AbstractLinearOp, b::Vector{Float64}, A::Abstra
         # --------------------------------------------------------------
         # Primal recovery.
         # --------------------------------------------------------------
-        if pr && u - α ≤ gapTol
+        if pr 
             exitFlag = primalrecover!(dcg, sol, α, feaTol, exitFlag)
         end
 
@@ -147,7 +147,7 @@ end
 function logger_head_cg(m, n, feaTol, α, maxIts)
     println()
     println("  -------------------------------------------------------------------------")
-    println("  Accelerated Dual Conditional Gradient Method")
+    println("  Dual Conditional Gradient Method")
     println("  -------------------------------------------------------------------------")
     @printf("  %-22s %7d %7s %-20s %7d\n","number of variables",n,"","number of constraints",m)
     @printf("  %-22s %7.2e %7s %-20s %7.2e\n","feasibility tolerance",feaTol,"","α",α)
@@ -170,27 +170,6 @@ end
 function logger_level_cg(α, k, u, gap, exitFlag, feas)
     @printf("  %8d   %8.2e   %8.2e   %8.2e   %s\n",
             k, u-α, gap, feas-α, exitFlag)
-end
-
-"""
-    primal recover 
-"""
-function primalrecover!(p::AccDualCGIterable, sol::Solution, α::Float64, feaTol::Float64, exitFlag)
-    flag = exitFlag
-    s = support(p.A, p.z)
-    F = face(p.A, p.z/s)
-    ϵ = copy(p.r); ϵ .*= sqrt(2*α)/norm(ϵ)
-    c, r = face_project(p.M, F, p.b - ϵ)
-    feas = norm(r + ϵ)^2/2 
-    if feas ≤ sol.feas
-        sol.F = F
-        sol.c = c
-        sol.feas = feas
-    end
-    if feas - α ≤ feaTol
-        flag = :feasible
-    end
-    return flag
 end
 
 

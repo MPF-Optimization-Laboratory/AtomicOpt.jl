@@ -55,7 +55,8 @@ function level_set(M::AbstractLinearOp, b::Vector{Float64}, A::AbstractAtomicSet
                    pr::Bool = true,
                    logger::Bool = true,
                    rule::String = "newton",
-                   τmax::Float64 = 1.0
+                   τmax::Float64 = 1.0,
+                   callback::Function = identity
                    )
 
     feaTol = tol*(1+norm(b))
@@ -124,9 +125,15 @@ function level_set(M::AbstractLinearOp, b::Vector{Float64}, A::AbstractAtomicSet
         # --------------------------------------------------------------
         # Primal recovery.
         # --------------------------------------------------------------
-        if pr && u - α ≤ gapTol
+        # if pr && u - α ≤ gapTol
+        if pr
             exitFlag = primalrecover!(dcg, sol, α, feaTol, exitFlag)
         end
+
+        # --------------------------------------------------------------
+        # Callback
+        # --------------------------------------------------------------
+        callback(dcg)
 
         # --------------------------------------------------------------
         # Logging and bookkeeping.
@@ -175,8 +182,11 @@ function logger_level_lvl(α, τ, k, minorItns, ℓ, u, exitFlag, feas)
             k, minorItns, u-α, ℓ-α, gap, τ, feas-α, exitFlag)
 end
 
-function compute_ρ(p::DualCGIterable, τmax, u, α)
-    β = support(p.A, p.z)
-    ρ = u/β + β*α - dot(p.b, p.r) + τmax
-    return ρ
+
+function dual_obj_gap(p::DualCGIterable, τ::Float64, λ::Float64, α::Float64)
+    β = τ
+    s = support(p.A, p.z)
+    y = deepcopy(p.r); y .*= 1 / s
+    dobj = norm(y)^2/(2*β) + β*α - dot(y, p.b)
+    return abs(dobj + τ)
 end
