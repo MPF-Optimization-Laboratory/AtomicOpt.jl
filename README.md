@@ -11,7 +11,7 @@ where `M: ℝⁿ -> ℝᵐ` is a linear operator, `b ∈ ℝᵐ` is the observat
 ## Installation
 To install, just call
 ```julia
-Pkg.add("https://github.com/ZhenanFanUBC/AtomicOpt.jl.git")
+Pkg.add("https://github.com/MPF-Optimization-Laboratory/AtomicOpt.jl.git")
 ```
 
 ## Use AtomicOpt.jl to solve basis pursuit problem
