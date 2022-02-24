@@ -12,7 +12,7 @@ function checkExitLvl(gap::Float64, ℓ::Float64, u::Float64, k::Int64, α::Floa
         u < α && return :suboptimal_large               # τ too large
         ℓ > α && return :suboptimal_small               # τ too small
     end
-    gap ≤ feaTol/2 && return :optimal                   # current lasso problem is fully optimal
+    gap ≤ feaTol * eps(Float64) && return :optimal      # current lasso problem is fully optimal
     k ≥ maxIts && return :iterations                    # out of iterations
     return :noerror                                     # otherwise
 end
@@ -56,10 +56,11 @@ function level_set(M::AbstractLinearOp, b::Vector{Float64}, A::AbstractAtomicSet
                    logger::Bool = true,
                    rule::String = "newton",
                    τmax::Float64 = 1.0,
-                   callback::Function = identity
+                   dual_gaps::Vector{Float64} = Vector{Float64}(),
+                   infeas::Vector{Float64} = Vector{Float64}()
                    )
 
-    feaTol = tol*(1+norm(b))
+    feaTol = (tol * norm(b))^2/2
     # Structure to hold the iterates
     dcg = DualCGIterable(M, b, A) 
     # Structure to hold the solution
@@ -131,9 +132,10 @@ function level_set(M::AbstractLinearOp, b::Vector{Float64}, A::AbstractAtomicSet
         end
 
         # --------------------------------------------------------------
-        # Callback
+        # record dual gaps and primal recover infeas
         # --------------------------------------------------------------
-        callback(dcg)
+        push!(dual_gaps, dual_obj_gap(dcg, τmax, α))
+        push!(infeas, sol.feasnew)
 
         # --------------------------------------------------------------
         # Logging and bookkeeping.
@@ -144,6 +146,8 @@ function level_set(M::AbstractLinearOp, b::Vector{Float64}, A::AbstractAtomicSet
 
 
     primalrecover!(dcg, sol, α, feaTol, exitFlag)
+    sort!(dual_gaps, rev=true)
+    sort!(infeas, rev=true)
 
     
     # foot logging
@@ -183,7 +187,7 @@ function logger_level_lvl(α, τ, k, minorItns, ℓ, u, exitFlag, feas)
 end
 
 
-function dual_obj_gap(p::DualCGIterable, τ::Float64, λ::Float64, α::Float64)
+function dual_obj_gap(p::DualCGIterable, τ::Float64, α::Float64)
     β = τ
     s = support(p.A, p.z)
     y = deepcopy(p.r); y .*= 1 / s
