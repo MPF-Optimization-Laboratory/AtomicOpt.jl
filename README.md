@@ -4,9 +4,9 @@ AtomicOpt.jl is a Julia package for solving the following non-convex structured 
 ```
     Find        x ∈ ℝⁿ  
     subject to  ½‖Mx-b‖² ≤ α 
-    and         rank(x|A) ≤ k
+    and         card(x|A) ≤ k
 ```
-where `M: ℝⁿ -> ℝᵐ` is a linear operator, `b ∈ ℝᵐ` is the observation vector, `A ⊆ ℝⁿ` is a atomic set and `rank(x|A)` measures the complexity of `x` with respect to the atomic set `A`. For example, when `A` is the set of all signed canonical vectors, i.e., `A = {±e₁, ..., ±eₙ}`, then `rank(x|A)` equals to the number of nonzero entries in `x`. When `A` is the set of all normalized rank one matrices, i.e., `A = { uv^T | u ∈ ℝᵐ, v ∈ ℝⁿ, ||u||₂ = ||v||₂ ≤ 1 }`, then `rank(x|A)` equals to the rank of the matrix `x`. Please see our [paper](https://friedlander.io/publications/2019-polar-alignment-atomic-decomp/) for more detailed discussion on atomic sparsity. 
+where `M: ℝⁿ -> ℝᵐ` is a linear operator, `b ∈ ℝᵐ` is the observation vector, `A ⊆ ℝⁿ` is a atomic set and `card(x|A)` measures the complexity of `x` with respect to the atomic set `A`. For example, when `A` is the set of all signed canonical vectors, i.e., `A = {±e₁, ..., ±eₙ}`, then `card(x|A)` equals to the number of nonzero entries in `x`. When `A` is the set of all normalized rank one matrices, i.e., `A = { uv^T | u ∈ ℝᵐ, v ∈ ℝⁿ, ||u||₂ = ||v||₂ ≤ 1 }`, then `card(x|A)` equals to the rank of the matrix `x`. Please see our [paper](https://friedlander.io/publications/2019-polar-alignment-atomic-decomp/) for more detailed discussion on atomic sparsity. 
 
 ## Installation
 To install, just call
@@ -73,10 +73,14 @@ we encourage you to cite the software.
 Use the following BibTeX citation:
 
 ```bibtex
-@article{fan2020polar,
-  title={Polar Deconvolution of Mixed Signals},
-  author={Fan, Zhenan and Jeong, Halyun and Joshi, Babhru and Friedlander, Michael P},
-  journal={arXiv preprint arXiv:2010.10508},
-  year={2020}
+@article{fan2022deconvolution,
+  author  = {Z. Fan and H. Jeong and B. Joshi and M. P. Friedlander},
+  title   = {Polar deconvolution of mixed signal},
+  journal = {IEEE Transactions on Signal Processing},
+  volume  = {70},
+  pages   = {2713--2727},
+  year    = {2022},
+  month   = {May},
+  doi     = {10.1109/TSP.2022.3178191}
 }
 ```

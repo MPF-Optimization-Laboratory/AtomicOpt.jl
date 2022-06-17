@@ -76,7 +76,7 @@ struct BlkNucBall{T1<:Int64, T2<:Matrix{Int64}} <: AbstractAtomicSet
     l::T1           # num of blocks 1
     h::T1           # num of blocks 2
     maxrank::T2     # max rank for each block
-    function BlkNucBall(n::Int64, m::Int64, bn::Int64, bm::Int64, maxrank::Matrix{Int64})
+    function BlkNucBall(n::Int64, m::Int64, bn::Int64, bm::Int64, maxrank::Matrix{Int64} = ones(Int64, floor(Int, m/bm), floor(Int, n/bn)))
         l = floor(Int, m/bm)
         h = floor(Int, n/bn)
         new{Int64, Matrix{Int64}}(m, n, bm, bn, l, h, maxrank)
